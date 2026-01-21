@@ -1,7 +1,7 @@
 {
-  "name": "app",
+  "name": "finex",
   "version": "1.0.0",
-  "main": "index.ts",
+  "main": "expo-router/entry",
   "scripts": {
     "start": "expo start",
     "android": "expo start --android",
@@ -9,16 +9,23 @@
     "web": "expo start --web"
   },
   "dependencies": {
-    "expo": "~54.0.31",
-    "expo-status-bar": "~3.0.9",
+    "expo": "~54.0.0",
+    "expo-constants": "~17.2.1",
+    "expo-linking": "~7.2.0",
+    "expo-router": "~5.1.0",
+    "expo-splash-screen": "~0.31.1",
+    "expo-status-bar": "~2.2.0",
     "react": "19.1.0",
     "react-dom": "19.1.0",
-    "react-native": "0.81.5",
-    "react-native-web": "^0.21.0"
+    "react-native": "0.79.2",
+    "react-native-safe-area-context": "5.4.0",
+    "react-native-screens": "~4.11.1",
+    "react-native-web": "~0.20.0"
   },
   "devDependencies": {
-    "@types/react": "~19.1.0",
-    "typescript": "~5.9.2"
+    "@babel/core": "^7.25.2",
+    "@types/react": "~19.1.2",
+    "typescript": "~5.8.3"
   },
   "private": true
 }
