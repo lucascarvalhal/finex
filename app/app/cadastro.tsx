@@ -3,23 +3,37 @@ import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert } from 'reac
 import { router } from 'expo-router';
 import { api } from '../services/api';
 
-export default function Login() {
+export default function Cadastro() {
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const handleLogin = async () => {
-    if (!email || !password) {
+  const handleRegister = async () => {
+    if (!name || !email || !password || !confirmPassword) {
       Alert.alert('Erro', 'Preencha todos os campos');
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      Alert.alert('Erro', 'As senhas não coincidem');
+      return;
+    }
+
+    if (password.length < 6) {
+      Alert.alert('Erro', 'A senha deve ter pelo menos 6 caracteres');
       return;
     }
 
     setLoading(true);
     try {
-      await api.login({ email, password });
-      router.replace('/(tabs)');
+      await api.register({ name, email, password });
+      Alert.alert('Sucesso', 'Conta criada com sucesso!', [
+        { text: 'OK', onPress: () => router.replace('/login') }
+      ]);
     } catch (error: any) {
-      Alert.alert('Erro', error.message || 'Erro ao fazer login');
+      Alert.alert('Erro', error.message || 'Erro ao criar conta');
     } finally {
       setLoading(false);
     }
@@ -28,9 +42,17 @@ export default function Login() {
   return (
     <View style={styles.container}>
       <Text style={styles.logo}>Finex</Text>
-      <Text style={styles.subtitle}>Controle suas finanças</Text>
+      <Text style={styles.subtitle}>Crie sua conta</Text>
 
       <View style={styles.form}>
+        <TextInput
+          style={styles.input}
+          placeholder="Nome completo"
+          placeholderTextColor="#64748b"
+          autoCapitalize="words"
+          value={name}
+          onChangeText={setName}
+        />
         <TextInput
           style={styles.input}
           placeholder="Email"
@@ -48,19 +70,27 @@ export default function Login() {
           value={password}
           onChangeText={setPassword}
         />
+        <TextInput
+          style={styles.input}
+          placeholder="Confirmar senha"
+          placeholderTextColor="#64748b"
+          secureTextEntry
+          value={confirmPassword}
+          onChangeText={setConfirmPassword}
+        />
         <TouchableOpacity 
           style={[styles.button, loading && styles.buttonDisabled]} 
-          onPress={handleLogin}
+          onPress={handleRegister}
           disabled={loading}
         >
           <Text style={styles.buttonText}>
-            {loading ? 'Entrando...' : 'Entrar'}
+            {loading ? 'Criando conta...' : 'Criar conta'}
           </Text>
         </TouchableOpacity>
       </View>
 
-      <TouchableOpacity onPress={() => router.push('/cadastro')}>
-        <Text style={styles.footer}>Não tem conta? <Text style={styles.link}>Cadastre-se</Text></Text>
+      <TouchableOpacity onPress={() => router.push('/login')}>
+        <Text style={styles.footer}>Já tem conta? <Text style={styles.link}>Faça login</Text></Text>
       </TouchableOpacity>
     </View>
   );
