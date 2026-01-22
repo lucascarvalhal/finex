@@ -1,12 +1,39 @@
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, status, Depends
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from app.models.user import UserCreate, UserLogin, Token, User, AuthProvider
-from app.auth.security import get_password_hash, verify_password, create_access_token
+from app.auth.security import get_password_hash, verify_password, create_access_token, decode_token
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+security = HTTPBearer()
 
 # Banco temporário em memória (depois vai pro PostgreSQL)
 fake_users_db: dict[str, dict] = {}
 user_id_counter = 0
+
+def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)) -> User:
+    token = credentials.credentials
+    payload = decode_token(token)
+    
+    if payload is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token inválido ou expirado"
+        )
+    
+    email = payload.get("sub")
+    if email is None or email not in fake_users_db:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Usuário não encontrado"
+        )
+    
+    db_user = fake_users_db[email]
+    return User(
+        id=db_user["id"],
+        email=db_user["email"],
+        name=db_user["name"],
+        provider=db_user["provider"]
+    )
 
 @router.post("/register", response_model=User)
 def register(user: UserCreate):
@@ -58,6 +85,5 @@ def login(user: UserLogin):
     return Token(access_token=access_token)
 
 @router.get("/me", response_model=User)
-def get_current_user():
-    # TODO: Implementar verificação do token
-    pass
+def get_me(current_user: User = Depends(get_current_user)):
+    return current_user
