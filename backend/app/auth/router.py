@@ -1,16 +1,18 @@
 from fastapi import APIRouter, HTTPException, status, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from app.models.user import UserCreate, UserLogin, Token, User, AuthProvider
+from sqlalchemy.orm import Session
+from app.models.user import UserCreate, UserLogin, Token, User
+from app.models.user_db import UserDB
 from app.auth.security import get_password_hash, verify_password, create_access_token, decode_token
+from app.config.database import get_db
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 security = HTTPBearer()
 
-# Banco temporário em memória (depois vai pro PostgreSQL)
-fake_users_db: dict[str, dict] = {}
-user_id_counter = 0
-
-def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)) -> User:
+def get_current_user(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    db: Session = Depends(get_db)
+) -> User:
     token = credentials.credentials
     payload = decode_token(token)
     
@@ -21,52 +23,54 @@ def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(securit
         )
     
     email = payload.get("sub")
-    if email is None or email not in fake_users_db:
+    db_user = db.query(UserDB).filter(UserDB.email == email).first()
+    
+    if db_user is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Usuário não encontrado"
         )
     
-    db_user = fake_users_db[email]
     return User(
-        id=db_user["id"],
-        email=db_user["email"],
-        name=db_user["name"],
-        provider=db_user["provider"]
+        id=db_user.id,
+        email=db_user.email,
+        name=db_user.name,
+        provider=db_user.provider
     )
 
 @router.post("/register", response_model=User)
-def register(user: UserCreate):
-    global user_id_counter
-    
-    if user.email in fake_users_db:
+def register(user: UserCreate, db: Session = Depends(get_db)):
+    # Verifica se email já existe
+    existing_user = db.query(UserDB).filter(UserDB.email == user.email).first()
+    if existing_user:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Email já cadastrado"
         )
     
-    user_id_counter += 1
+    # Cria o usuário
     hashed_password = get_password_hash(user.password)
+    db_user = UserDB(
+        email=user.email,
+        name=user.name,
+        hashed_password=hashed_password,
+        provider="local"
+    )
     
-    db_user = {
-        "id": user_id_counter,
-        "email": user.email,
-        "name": user.name,
-        "hashed_password": hashed_password,
-        "provider": AuthProvider.local
-    }
-    fake_users_db[user.email] = db_user
+    db.add(db_user)
+    db.commit()
+    db.refresh(db_user)
     
     return User(
-        id=db_user["id"],
-        email=db_user["email"],
-        name=db_user["name"],
-        provider=db_user["provider"]
+        id=db_user.id,
+        email=db_user.email,
+        name=db_user.name,
+        provider=db_user.provider
     )
 
 @router.post("/login", response_model=Token)
-def login(user: UserLogin):
-    db_user = fake_users_db.get(user.email)
+def login(user: UserLogin, db: Session = Depends(get_db)):
+    db_user = db.query(UserDB).filter(UserDB.email == user.email).first()
     
     if not db_user:
         raise HTTPException(
@@ -74,7 +78,7 @@ def login(user: UserLogin):
             detail="Email ou senha incorretos"
         )
     
-    if not verify_password(user.password, db_user["hashed_password"]):
+    if not verify_password(user.password, db_user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Email ou senha incorretos"
