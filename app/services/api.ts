@@ -23,6 +23,30 @@ export interface AuthResponse {
   token_type: string;
 }
 
+export interface Transaction {
+  id: number;
+  user_id: number;
+  tipo: 'receita' | 'despesa';
+  valor: number;
+  categoria: string;
+  descricao?: string;
+  data: string;
+}
+
+export interface TransactionCreate {
+  tipo: 'receita' | 'despesa';
+  valor: number;
+  categoria: string;
+  descricao?: string;
+  data: string;
+}
+
+export interface Summary {
+  receitas: number;
+  despesas: number;
+  saldo: number;
+}
+
 class ApiService {
   private token: string | null = null;
 
@@ -32,6 +56,10 @@ class ApiService {
 
   clearToken() {
     this.token = null;
+  }
+
+  getToken() {
+    return this.token;
   }
 
   private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
@@ -57,6 +85,7 @@ class ApiService {
     return response.json();
   }
 
+  // Auth
   async register(data: RegisterData): Promise<User> {
     return this.request<User>('/auth/register', {
       method: 'POST',
@@ -75,6 +104,28 @@ class ApiService {
 
   async getMe(): Promise<User> {
     return this.request<User>('/auth/me');
+  }
+
+  // Transactions
+  async getTransactions(): Promise<Transaction[]> {
+    return this.request<Transaction[]>('/transactions/');
+  }
+
+  async getSummary(): Promise<Summary> {
+    return this.request<Summary>('/transactions/summary');
+  }
+
+  async createTransaction(data: TransactionCreate): Promise<Transaction> {
+    return this.request<Transaction>('/transactions/', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteTransaction(id: number): Promise<void> {
+    await this.request(`/transactions/${id}`, {
+      method: 'DELETE',
+    });
   }
 }
 
