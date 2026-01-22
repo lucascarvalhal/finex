@@ -1,8 +1,10 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.auth.router import router as auth_router
+from app.transactions.router import router as transactions_router
 from app.config.database import engine, Base
-from app.models.user_db import UserDB  # Importa para registrar o modelo
+from app.models.user_db import UserDB
+from app.models.transaction_db import TransactionDB
 
 # Cria as tabelas no banco
 Base.metadata.create_all(bind=engine)
@@ -24,6 +26,7 @@ app.add_middleware(
 
 # Rotas
 app.include_router(auth_router)
+app.include_router(transactions_router)
 
 @app.get("/")
 def root():
