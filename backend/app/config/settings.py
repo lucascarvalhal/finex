@@ -8,6 +8,6 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # 24 horas
 
 # Database
 DATABASE_URL = os.getenv(
-    "DATABASE_URL", 
-    "postgresql://finex:finex123@localhost:5432/finex"
+    "DATABASE_URL",
+    "postgresql://carva:lucas1950185@localhost:5432/finex"
 )

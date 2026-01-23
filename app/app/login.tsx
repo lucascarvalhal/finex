@@ -1,9 +1,11 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { router } from 'expo-router';
-import { api } from '../services/api';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-export default function Login() {
+const API_URL = 'http://localhost:8000';
+
+export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -13,13 +15,23 @@ export default function Login() {
       Alert.alert('Erro', 'Preencha todos os campos');
       return;
     }
-
     setLoading(true);
     try {
-      await api.login({ email, password });
-      router.replace('/(tabs)');
-    } catch (error: any) {
-      Alert.alert('Erro', error.message || 'Erro ao fazer login');
+      const response = await fetch(`${API_URL}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      });
+
+      const data = await response.json();
+      if (response.ok) {
+        await AsyncStorage.setItem('token', data.access_token);
+        router.replace('/(tabs)');
+      } else {
+        Alert.alert('Erro', data.detail || 'Credenciais inválidas');
+      }
+    } catch (error) {
+      Alert.alert('Erro', 'Não foi possível conectar ao servidor');
     } finally {
       setLoading(false);
     }
@@ -27,100 +39,41 @@ export default function Login() {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.logo}>Finex</Text>
-      <Text style={styles.subtitle}>Controle suas finanças</Text>
-
-      <View style={styles.form}>
-        <TextInput
-          style={styles.input}
-          placeholder="Email"
-          placeholderTextColor="#64748b"
-          keyboardType="email-address"
-          autoCapitalize="none"
-          value={email}
-          onChangeText={setEmail}
-        />
-        <TextInput
-          style={styles.input}
-          placeholder="Senha"
-          placeholderTextColor="#64748b"
-          secureTextEntry
-          value={password}
-          onChangeText={setPassword}
-        />
-        <TouchableOpacity 
-          style={[styles.button, loading && styles.buttonDisabled]} 
-          onPress={handleLogin}
-          disabled={loading}
-        >
-          <Text style={styles.buttonText}>
-            {loading ? 'Entrando...' : 'Entrar'}
-          </Text>
-        </TouchableOpacity>
-      </View>
-
+      <Text style={styles.title}>Finex</Text>
+      <Text style={styles.subtitle}>Seu assessor financeiro</Text>
+      <TextInput
+        style={styles.input}
+        placeholder="Email"
+        placeholderTextColor="#666"
+        value={email}
+        onChangeText={setEmail}
+        keyboardType="email-address"
+        autoCapitalize="none"
+      />
+      <TextInput
+        style={styles.input}
+        placeholder="Senha"
+        placeholderTextColor="#666"
+        value={password}
+        onChangeText={setPassword}
+        secureTextEntry
+      />
+      <TouchableOpacity style={styles.button} onPress={handleLogin} disabled={loading}>
+        <Text style={styles.buttonText}>{loading ? 'Entrando...' : 'Entrar'}</Text>
+      </TouchableOpacity>
       <TouchableOpacity onPress={() => router.push('/cadastro')}>
-        <Text style={styles.footer}>Não tem conta? <Text style={styles.link}>Cadastre-se</Text></Text>
+        <Text style={styles.link}>Não tem conta? Cadastre-se</Text>
       </TouchableOpacity>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#0f172a',
-    padding: 20,
-    justifyContent: 'center',
-  },
-  logo: {
-    fontSize: 48,
-    fontWeight: 'bold',
-    color: '#10b981',
-    textAlign: 'center',
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: '#64748b',
-    textAlign: 'center',
-    marginBottom: 48,
-  },
-  form: {
-    gap: 16,
-  },
-  input: {
-    backgroundColor: '#1e293b',
-    borderRadius: 12,
-    padding: 16,
-    fontSize: 16,
-    color: '#fff',
-    borderWidth: 1,
-    borderColor: '#334155',
-  },
-  button: {
-    backgroundColor: '#10b981',
-    borderRadius: 12,
-    padding: 16,
-    alignItems: 'center',
-    marginTop: 8,
-  },
-  buttonDisabled: {
-    opacity: 0.7,
-  },
-  buttonText: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#fff',
-  },
-  footer: {
-    fontSize: 14,
-    color: '#64748b',
-    textAlign: 'center',
-    marginTop: 32,
-  },
-  link: {
-    color: '#10b981',
-    fontWeight: 'bold',
-  },
+  container: { flex: 1, backgroundColor: '#0f172a', justifyContent: 'center', padding: 20 },
+  title: { fontSize: 36, fontWeight: 'bold', color: '#10b981', textAlign: 'center' },
+  subtitle: { fontSize: 16, color: '#64748b', textAlign: 'center', marginBottom: 40 },
+  input: { backgroundColor: '#1e293b', color: '#fff', padding: 15, borderRadius: 10, marginBottom: 15, fontSize: 16 },
+  button: { backgroundColor: '#10b981', padding: 15, borderRadius: 10, alignItems: 'center', marginTop: 10 },
+  buttonText: { color: '#fff', fontSize: 18, fontWeight: 'bold' },
+  link: { color: '#10b981', textAlign: 'center', marginTop: 20, fontSize: 16 },
 });

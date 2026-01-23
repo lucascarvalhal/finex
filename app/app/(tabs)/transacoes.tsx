@@ -1,234 +1,95 @@
-import { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal } from 'react-native';
-import { api, Transaction, TransactionCreate } from '../../services/api';
+import React, { useEffect, useState } from 'react';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Modal, TextInput, Alert } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-export default function Transacoes() {
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [loading, setLoading] = useState(true);
+const API_URL = 'http://localhost:8000';
+
+export default function TransacoesScreen() {
+  const [transacoes, setTransacoes] = useState([]);
   const [modalVisible, setModalVisible] = useState(false);
-  const [saving, setSaving] = useState(false);
-
-  // Form state
-  const [tipo, setTipo] = useState<'receita' | 'despesa'>('despesa');
-  const [valor, setValor] = useState('');
-  const [categoria, setCategoria] = useState('');
   const [descricao, setDescricao] = useState('');
+  const [valor, setValor] = useState('');
+  const [tipo, setTipo] = useState('despesa');
 
-  useEffect(() => {
-    loadTransactions();
-  }, []);
-
-  const loadTransactions = async () => {
+  const fetchTransacoes = async () => {
     try {
-      const data = await api.getTransactions();
-      setTransactions(data);
+      const token = await AsyncStorage.getItem('token');
+      const response = await fetch(`${API_URL}/transactions/`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setTransacoes(data);
+      }
     } catch (error) {
-      console.log('Erro ao carregar transações:', error);
-    } finally {
-      setLoading(false);
+      console.log('Erro ao buscar transações');
     }
   };
 
-  const handleSave = async () => {
-    if (!valor || !categoria) {
-      alert('Preencha valor e categoria');
+  useEffect(() => { fetchTransacoes(); }, []);
+
+  const addTransacao = async () => {
+    if (!descricao || !valor) {
+      Alert.alert('Erro', 'Preencha todos os campos');
       return;
     }
-
-    setSaving(true);
     try {
-      const today = new Date().toISOString().split('T')[0];
-      const newTransaction: TransactionCreate = {
-        tipo,
-        valor: parseFloat(valor.replace(',', '.')),
-        categoria,
-        descricao: descricao || undefined,
-        data: today,
-      };
-
-      await api.createTransaction(newTransaction);
-      await loadTransactions();
-      closeModal();
-    } catch (error: any) {
-      alert(error.message || 'Erro ao salvar');
-    } finally {
-      setSaving(false);
+      const token = await AsyncStorage.getItem('token');
+      const response = await fetch(`${API_URL}/transactions/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ descricao, valor: parseFloat(valor), tipo, categoria: 'Geral' }),
+      });
+      if (response.ok) {
+        setModalVisible(false);
+        setDescricao('');
+        setValor('');
+        fetchTransacoes();
+      }
+    } catch (error) {
+      Alert.alert('Erro', 'Não foi possível adicionar');
     }
   };
 
-  const handleDelete = async (id: number) => {
-    try {
-      await api.deleteTransaction(id);
-      await loadTransactions();
-    } catch (error: any) {
-      alert(error.message || 'Erro ao excluir');
-    }
-  };
-
-  const closeModal = () => {
-    setModalVisible(false);
-    setTipo('despesa');
-    setValor('');
-    setCategoria('');
-    setDescricao('');
-  };
-
-  const formatCurrency = (value: number) => {
-    return value.toLocaleString('pt-BR', {
-      style: 'currency',
-      currency: 'BRL'
-    });
-  };
-
-  const formatDate = (dateStr: string) => {
-    const date = new Date(dateStr + 'T00:00:00');
-    return date.toLocaleDateString('pt-BR');
-  };
-
-  const categoriasSugestoes = tipo === 'despesa' 
-    ? ['Alimentação', 'Transporte', 'Moradia', 'Saúde', 'Lazer', 'Educação', 'Outros']
-    : ['Salário', 'Freelance', 'Investimentos', 'Vendas', 'Outros'];
-
-  if (loading) {
-    return (
-      <View style={styles.container}>
-        <Text style={styles.loading}>Carregando...</Text>
+  const renderItem = ({ item }) => (
+    <View style={styles.item}>
+      <View>
+        <Text style={styles.itemDesc}>{item.descricao}</Text>
+        <Text style={styles.itemCat}>{item.categoria}</Text>
       </View>
-    );
-  }
+      <Text style={[styles.itemValor, { color: item.tipo === 'receita' ? '#10b981' : '#ef4444' }]}>
+        {item.tipo === 'receita' ? '+' : '-'} R$ {item.valor?.toFixed(2)}
+      </Text>
+    </View>
+  );
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Transações</Text>
-        <TouchableOpacity style={styles.addButton} onPress={() => setModalVisible(true)}>
-          <Text style={styles.addButtonText}>+ Nova</Text>
-        </TouchableOpacity>
-      </View>
+      <FlatList data={transacoes} renderItem={renderItem} keyExtractor={(item) => item.id?.toString()} />
+      <TouchableOpacity style={styles.fab} onPress={() => setModalVisible(true)}>
+        <Text style={styles.fabText}>+</Text>
+      </TouchableOpacity>
 
-      <ScrollView style={styles.list}>
-        {transactions.length === 0 ? (
-          <Text style={styles.empty}>Nenhuma transação ainda</Text>
-        ) : (
-          transactions.map((t) => (
-            <TouchableOpacity 
-              key={t.id} 
-              style={styles.transactionItem}
-              onLongPress={() => {
-                if (confirm('Excluir esta transação?')) {
-                  handleDelete(t.id);
-                }
-              }}
-            >
-              <View style={styles.transactionLeft}>
-                <View style={[
-                  styles.tipoIndicator,
-                  t.tipo === 'receita' ? styles.indicatorReceita : styles.indicatorDespesa
-                ]} />
-                <View>
-                  <Text style={styles.transactionCategoria}>{t.categoria}</Text>
-                  <Text style={styles.transactionDescricao}>{t.descricao || '-'}</Text>
-                  <Text style={styles.transactionData}>{formatDate(t.data)}</Text>
-                </View>
-              </View>
-              <Text style={[
-                styles.transactionValor,
-                t.tipo === 'receita' ? styles.valorReceita : styles.valorDespesa
-              ]}>
-                {t.tipo === 'receita' ? '+' : '-'} {formatCurrency(t.valor)}
-              </Text>
-            </TouchableOpacity>
-          ))
-        )}
-      </ScrollView>
-
-      {/* Modal Adicionar */}
-      <Modal
-        animationType="slide"
-        transparent={true}
-        visible={modalVisible}
-        onRequestClose={closeModal}
-      >
+      <Modal visible={modalVisible} transparent animationType="slide">
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Nova Transação</Text>
-
-            {/* Tipo */}
+            <TextInput style={styles.input} placeholder="Descrição" placeholderTextColor="#666" value={descricao} onChangeText={setDescricao} />
+            <TextInput style={styles.input} placeholder="Valor" placeholderTextColor="#666" value={valor} onChangeText={setValor} keyboardType="numeric" />
             <View style={styles.tipoContainer}>
-              <TouchableOpacity
-                style={[styles.tipoButton, tipo === 'receita' && styles.tipoButtonActiveReceita]}
-                onPress={() => setTipo('receita')}
-              >
-                <Text style={[styles.tipoButtonText, tipo === 'receita' && styles.tipoButtonTextActive]}>
-                  Receita
-                </Text>
+              <TouchableOpacity style={[styles.tipoBtn, tipo === 'despesa' && styles.tipoBtnActive]} onPress={() => setTipo('despesa')}>
+                <Text style={styles.tipoText}>Despesa</Text>
               </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.tipoButton, tipo === 'despesa' && styles.tipoButtonActiveDespesa]}
-                onPress={() => setTipo('despesa')}
-              >
-                <Text style={[styles.tipoButtonText, tipo === 'despesa' && styles.tipoButtonTextActive]}>
-                  Despesa
-                </Text>
+              <TouchableOpacity style={[styles.tipoBtn, tipo === 'receita' && styles.tipoBtnActiveGreen]} onPress={() => setTipo('receita')}>
+                <Text style={styles.tipoText}>Receita</Text>
               </TouchableOpacity>
             </View>
-
-            {/* Valor */}
-            <TextInput
-              style={styles.input}
-              placeholder="Valor"
-              placeholderTextColor="#64748b"
-              keyboardType="numeric"
-              value={valor}
-              onChangeText={setValor}
-            />
-
-            {/* Categoria */}
-            <TextInput
-              style={styles.input}
-              placeholder="Categoria"
-              placeholderTextColor="#64748b"
-              value={categoria}
-              onChangeText={setCategoria}
-            />
-            
-            {/* Sugestões de categoria */}
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.sugestoes}>
-              {categoriasSugestoes.map((cat) => (
-                <TouchableOpacity
-                  key={cat}
-                  style={styles.sugestaoChip}
-                  onPress={() => setCategoria(cat)}
-                >
-                  <Text style={styles.sugestaoText}>{cat}</Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-
-            {/* Descrição */}
-            <TextInput
-              style={styles.input}
-              placeholder="Descrição (opcional)"
-              placeholderTextColor="#64748b"
-              value={descricao}
-              onChangeText={setDescricao}
-            />
-
-            {/* Botões */}
-            <View style={styles.modalButtons}>
-              <TouchableOpacity style={styles.cancelButton} onPress={closeModal}>
-                <Text style={styles.cancelButtonText}>Cancelar</Text>
-              </TouchableOpacity>
-              <TouchableOpacity 
-                style={[styles.saveButton, saving && styles.saveButtonDisabled]} 
-                onPress={handleSave}
-                disabled={saving}
-              >
-                <Text style={styles.saveButtonText}>
-                  {saving ? 'Salvando...' : 'Salvar'}
-                </Text>
-              </TouchableOpacity>
-            </View>
+            <TouchableOpacity style={styles.saveBtn} onPress={addTransacao}>
+              <Text style={styles.saveBtnText}>Salvar</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => setModalVisible(false)}>
+              <Text style={styles.cancelText}>Cancelar</Text>
+            </TouchableOpacity>
           </View>
         </View>
       </Modal>
@@ -237,197 +98,23 @@ export default function Transacoes() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#0f172a',
-    padding: 20,
-  },
-  loading: {
-    color: '#64748b',
-    fontSize: 16,
-    textAlign: 'center',
-    marginTop: 50,
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#fff',
-  },
-  addButton: {
-    backgroundColor: '#10b981',
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-  },
-  addButtonText: {
-    color: '#fff',
-    fontWeight: 'bold',
-    fontSize: 14,
-  },
-  list: {
-    flex: 1,
-  },
-  empty: {
-    color: '#64748b',
-    textAlign: 'center',
-    marginTop: 40,
-    fontSize: 16,
-  },
-  transactionItem: {
-    backgroundColor: '#1e293b',
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 10,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  transactionLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
-  tipoIndicator: {
-    width: 4,
-    height: 40,
-    borderRadius: 2,
-    marginRight: 12,
-  },
-  indicatorReceita: {
-    backgroundColor: '#10b981',
-  },
-  indicatorDespesa: {
-    backgroundColor: '#ef4444',
-  },
-  transactionCategoria: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#fff',
-  },
-  transactionDescricao: {
-    fontSize: 13,
-    color: '#64748b',
-    marginTop: 2,
-  },
-  transactionData: {
-    fontSize: 12,
-    color: '#475569',
-    marginTop: 2,
-  },
-  transactionValor: {
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  valorReceita: {
-    color: '#10b981',
-  },
-  valorDespesa: {
-    color: '#ef4444',
-  },
-  // Modal
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.7)',
-    justifyContent: 'flex-end',
-  },
-  modalContent: {
-    backgroundColor: '#1e293b',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    padding: 24,
-    maxHeight: '80%',
-  },
-  modalTitle: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: '#fff',
-    marginBottom: 20,
-    textAlign: 'center',
-  },
-  tipoContainer: {
-    flexDirection: 'row',
-    gap: 12,
-    marginBottom: 16,
-  },
-  tipoButton: {
-    flex: 1,
-    padding: 14,
-    borderRadius: 10,
-    backgroundColor: '#334155',
-    alignItems: 'center',
-  },
-  tipoButtonActiveReceita: {
-    backgroundColor: '#10b981',
-  },
-  tipoButtonActiveDespesa: {
-    backgroundColor: '#ef4444',
-  },
-  tipoButtonText: {
-    color: '#94a3b8',
-    fontWeight: '600',
-    fontSize: 16,
-  },
-  tipoButtonTextActive: {
-    color: '#fff',
-  },
-  input: {
-    backgroundColor: '#334155',
-    borderRadius: 10,
-    padding: 14,
-    fontSize: 16,
-    color: '#fff',
-    marginBottom: 12,
-  },
-  sugestoes: {
-    marginBottom: 12,
-  },
-  sugestaoChip: {
-    backgroundColor: '#334155',
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-    borderRadius: 20,
-    marginRight: 8,
-  },
-  sugestaoText: {
-    color: '#94a3b8',
-    fontSize: 13,
-  },
-  modalButtons: {
-    flexDirection: 'row',
-    gap: 12,
-    marginTop: 8,
-  },
-  cancelButton: {
-    flex: 1,
-    padding: 14,
-    borderRadius: 10,
-    backgroundColor: '#334155',
-    alignItems: 'center',
-  },
-  cancelButtonText: {
-    color: '#94a3b8',
-    fontWeight: '600',
-    fontSize: 16,
-  },
-  saveButton: {
-    flex: 1,
-    padding: 14,
-    borderRadius: 10,
-    backgroundColor: '#10b981',
-    alignItems: 'center',
-  },
-  saveButtonDisabled: {
-    opacity: 0.7,
-  },
-  saveButtonText: {
-    color: '#fff',
-    fontWeight: '600',
-    fontSize: 16,
-  },
+  container: { flex: 1, backgroundColor: '#0f172a' },
+  item: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 15, borderBottomWidth: 1, borderBottomColor: '#1e293b' },
+  itemDesc: { color: '#fff', fontSize: 16 },
+  itemCat: { color: '#64748b', fontSize: 12 },
+  itemValor: { fontSize: 16, fontWeight: 'bold' },
+  fab: { position: 'absolute', bottom: 20, right: 20, backgroundColor: '#10b981', width: 56, height: 56, borderRadius: 28, justifyContent: 'center', alignItems: 'center' },
+  fabText: { color: '#fff', fontSize: 30 },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', padding: 20 },
+  modalContent: { backgroundColor: '#1e293b', borderRadius: 12, padding: 20 },
+  modalTitle: { color: '#fff', fontSize: 20, fontWeight: 'bold', marginBottom: 20, textAlign: 'center' },
+  input: { backgroundColor: '#0f172a', color: '#fff', padding: 15, borderRadius: 10, marginBottom: 15, fontSize: 16 },
+  tipoContainer: { flexDirection: 'row', gap: 10, marginBottom: 15 },
+  tipoBtn: { flex: 1, padding: 12, borderRadius: 10, backgroundColor: '#0f172a', alignItems: 'center' },
+  tipoBtnActive: { backgroundColor: '#ef4444' },
+  tipoBtnActiveGreen: { backgroundColor: '#10b981' },
+  tipoText: { color: '#fff', fontWeight: 'bold' },
+  saveBtn: { backgroundColor: '#10b981', padding: 15, borderRadius: 10, alignItems: 'center' },
+  saveBtnText: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
+  cancelText: { color: '#64748b', textAlign: 'center', marginTop: 15 },
 });

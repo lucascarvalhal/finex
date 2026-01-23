@@ -1,39 +1,37 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { router } from 'expo-router';
-import { api } from '../services/api';
 
-export default function Cadastro() {
+const API_URL = 'http://localhost:8000';
+
+export default function CadastroScreen() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
 
   const handleRegister = async () => {
-    if (!name || !email || !password || !confirmPassword) {
+    if (!name || !email || !password) {
       Alert.alert('Erro', 'Preencha todos os campos');
       return;
     }
-
-    if (password !== confirmPassword) {
-      Alert.alert('Erro', 'As senhas não coincidem');
-      return;
-    }
-
-    if (password.length < 6) {
-      Alert.alert('Erro', 'A senha deve ter pelo menos 6 caracteres');
-      return;
-    }
-
     setLoading(true);
     try {
-      await api.register({ name, email, password });
-      Alert.alert('Sucesso', 'Conta criada com sucesso!', [
-        { text: 'OK', onPress: () => router.replace('/login') }
-      ]);
-    } catch (error: any) {
-      Alert.alert('Erro', error.message || 'Erro ao criar conta');
+      const response = await fetch(`${API_URL}/auth/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, email, password }),
+      });
+
+      const data = await response.json();
+      if (response.ok) {
+        Alert.alert('Sucesso', 'Conta criada! Faça login.');
+        router.replace('/login');
+      } else {
+        Alert.alert('Erro', data.detail || 'Erro ao cadastrar');
+      }
+    } catch (error) {
+      Alert.alert('Erro', 'Não foi possível conectar ao servidor');
     } finally {
       setLoading(false);
     }
@@ -41,116 +39,25 @@ export default function Cadastro() {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.logo}>Finex</Text>
-      <Text style={styles.subtitle}>Crie sua conta</Text>
-
-      <View style={styles.form}>
-        <TextInput
-          style={styles.input}
-          placeholder="Nome completo"
-          placeholderTextColor="#64748b"
-          autoCapitalize="words"
-          value={name}
-          onChangeText={setName}
-        />
-        <TextInput
-          style={styles.input}
-          placeholder="Email"
-          placeholderTextColor="#64748b"
-          keyboardType="email-address"
-          autoCapitalize="none"
-          value={email}
-          onChangeText={setEmail}
-        />
-        <TextInput
-          style={styles.input}
-          placeholder="Senha"
-          placeholderTextColor="#64748b"
-          secureTextEntry
-          value={password}
-          onChangeText={setPassword}
-        />
-        <TextInput
-          style={styles.input}
-          placeholder="Confirmar senha"
-          placeholderTextColor="#64748b"
-          secureTextEntry
-          value={confirmPassword}
-          onChangeText={setConfirmPassword}
-        />
-        <TouchableOpacity 
-          style={[styles.button, loading && styles.buttonDisabled]} 
-          onPress={handleRegister}
-          disabled={loading}
-        >
-          <Text style={styles.buttonText}>
-            {loading ? 'Criando conta...' : 'Criar conta'}
-          </Text>
-        </TouchableOpacity>
-      </View>
-
-      <TouchableOpacity onPress={() => router.push('/login')}>
-        <Text style={styles.footer}>Já tem conta? <Text style={styles.link}>Faça login</Text></Text>
+      <Text style={styles.title}>Criar Conta</Text>
+      <TextInput style={styles.input} placeholder="Nome" placeholderTextColor="#666" value={name} onChangeText={setName} />
+      <TextInput style={styles.input} placeholder="Email" placeholderTextColor="#666" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" />
+      <TextInput style={styles.input} placeholder="Senha" placeholderTextColor="#666" value={password} onChangeText={setPassword} secureTextEntry />
+      <TouchableOpacity style={styles.button} onPress={handleRegister} disabled={loading}>
+        <Text style={styles.buttonText}>{loading ? 'Cadastrando...' : 'Cadastrar'}</Text>
+      </TouchableOpacity>
+      <TouchableOpacity onPress={() => router.back()}>
+        <Text style={styles.link}>Já tem conta? Entrar</Text>
       </TouchableOpacity>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#0f172a',
-    padding: 20,
-    justifyContent: 'center',
-  },
-  logo: {
-    fontSize: 48,
-    fontWeight: 'bold',
-    color: '#10b981',
-    textAlign: 'center',
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: '#64748b',
-    textAlign: 'center',
-    marginBottom: 48,
-  },
-  form: {
-    gap: 16,
-  },
-  input: {
-    backgroundColor: '#1e293b',
-    borderRadius: 12,
-    padding: 16,
-    fontSize: 16,
-    color: '#fff',
-    borderWidth: 1,
-    borderColor: '#334155',
-  },
-  button: {
-    backgroundColor: '#10b981',
-    borderRadius: 12,
-    padding: 16,
-    alignItems: 'center',
-    marginTop: 8,
-  },
-  buttonDisabled: {
-    opacity: 0.7,
-  },
-  buttonText: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#fff',
-  },
-  footer: {
-    fontSize: 14,
-    color: '#64748b',
-    textAlign: 'center',
-    marginTop: 32,
-  },
-  link: {
-    color: '#10b981',
-    fontWeight: 'bold',
-  },
+  container: { flex: 1, backgroundColor: '#0f172a', justifyContent: 'center', padding: 20 },
+  title: { fontSize: 28, fontWeight: 'bold', color: '#10b981', textAlign: 'center', marginBottom: 30 },
+  input: { backgroundColor: '#1e293b', color: '#fff', padding: 15, borderRadius: 10, marginBottom: 15, fontSize: 16 },
+  button: { backgroundColor: '#10b981', padding: 15, borderRadius: 10, alignItems: 'center', marginTop: 10 },
+  buttonText: { color: '#fff', fontSize: 18, fontWeight: 'bold' },
+  link: { color: '#10b981', textAlign: 'center', marginTop: 20, fontSize: 16 },
 });
