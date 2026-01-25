@@ -1,3 +1,5 @@
+import warnings
+warnings.filterwarnings("ignore", message="Your application has authenticated using end user credentials")
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.auth.router import router as auth_router
