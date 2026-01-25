@@ -12,7 +12,8 @@ function Sidebar() {
   const menuItems = [
     { name: 'index', label: 'Dashboard', icon: 'grid-outline', iconActive: 'grid' },
     { name: 'transacoes', label: 'Transações', icon: 'swap-horizontal-outline', iconActive: 'swap-horizontal' },
-    { name: 'assessor', label: 'Assessor IA', icon: 'chatbubble-ellipses-outline', iconActive: 'chatbubble-ellipses' },
+    { name: 'assessor', label: 'Assessor IA', icon: 'sparkles-outline', iconActive: 'sparkles' },
+    { name: 'integracoes', label: 'Integrações', icon: 'apps-outline', iconActive: 'apps' },
     { name: 'perfil', label: 'Perfil', icon: 'person-outline', iconActive: 'person' },
   ];
 
@@ -26,7 +27,7 @@ function Sidebar() {
       {/* Logo */}
       <View style={styles.logoContainer}>
         <View style={styles.logoIcon}>
-          <Ionicons name="wallet" size={24} color="#10b981" />
+          <Ionicons name="wallet" size={24} color="#166534" />
         </View>
         <Text style={styles.logoText}>Finex</Text>
       </View>
@@ -42,7 +43,7 @@ function Sidebar() {
             <Ionicons
               name={isActive(item.name) ? item.iconActive as any : item.icon as any}
               size={20}
-              color={isActive(item.name) ? '#10b981' : '#64748b'}
+              color={isActive(item.name) ? '#166534' : '#64748b'}
             />
             <Text style={[styles.menuLabel, isActive(item.name) && styles.menuLabelActive]}>
               {item.label}
@@ -78,6 +79,7 @@ export default function TabsLayout() {
             <Tabs.Screen name="index" />
             <Tabs.Screen name="transacoes" />
             <Tabs.Screen name="assessor" />
+            <Tabs.Screen name="integracoes" />
             <Tabs.Screen name="perfil" />
           </Tabs>
         </View>
@@ -89,16 +91,21 @@ export default function TabsLayout() {
     <Tabs
       screenOptions={{
         tabBarStyle: {
-          backgroundColor: '#0a0f1a',
-          borderTopColor: '#1e293b',
+          backgroundColor: '#fff',
+          borderTopColor: '#e2e8f0',
           borderTopWidth: 1,
           height: 60,
           paddingBottom: 8,
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: -2 },
+          shadowOpacity: 0.05,
+          shadowRadius: 4,
+          elevation: 8,
         },
-        tabBarActiveTintColor: '#10b981',
-        tabBarInactiveTintColor: '#64748b',
-        headerStyle: { backgroundColor: '#0a0f1a' },
-        headerTintColor: '#fff',
+        tabBarActiveTintColor: '#166534',
+        tabBarInactiveTintColor: '#94a3b8',
+        headerStyle: { backgroundColor: '#fff' },
+        headerTintColor: '#1e293b',
         headerShown: false,
       }}
     >
@@ -120,7 +127,14 @@ export default function TabsLayout() {
         name="assessor"
         options={{
           title: 'Assessor',
-          tabBarIcon: ({ color, size }) => <Ionicons name="chatbubble-ellipses-outline" size={size} color={color} />,
+          tabBarIcon: ({ color, size }) => <Ionicons name="sparkles-outline" size={size} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="integracoes"
+        options={{
+          title: 'Integrações',
+          tabBarIcon: ({ color, size }) => <Ionicons name="apps-outline" size={size} color={color} />,
         }}
       />
       <Tabs.Screen
@@ -138,13 +152,13 @@ const styles = StyleSheet.create({
   webContainer: {
     flex: 1,
     flexDirection: 'row',
-    backgroundColor: '#060910',
+    backgroundColor: '#f8fafc',
   },
   sidebar: {
-    width: 240,
-    backgroundColor: '#0d1320',
+    width: 260,
+    backgroundColor: '#fff',
     borderRightWidth: 1,
-    borderRightColor: '#1e293b',
+    borderRightColor: '#e2e8f0',
     padding: 20,
     justifyContent: 'space-between',
   },
@@ -155,18 +169,18 @@ const styles = StyleSheet.create({
     paddingLeft: 8,
   },
   logoIcon: {
-    width: 40,
-    height: 40,
+    width: 44,
+    height: 44,
     borderRadius: 12,
-    backgroundColor: '#10b98120',
+    backgroundColor: '#dcfce7',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
   },
   logoText: {
-    fontSize: 22,
+    fontSize: 24,
     fontWeight: 'bold',
-    color: '#fff',
+    color: '#166534',
   },
   menu: {
     flex: 1,
@@ -179,7 +193,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   menuItemActive: {
-    backgroundColor: '#10b98115',
+    backgroundColor: '#dcfce7',
   },
   menuLabel: {
     marginLeft: 14,
@@ -188,30 +202,32 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   menuLabelActive: {
-    color: '#10b981',
+    color: '#166534',
+    fontWeight: '600',
   },
   premiumCard: {
-    backgroundColor: '#10b98115',
+    backgroundColor: '#f0fdf4',
     borderRadius: 16,
     padding: 20,
     borderWidth: 1,
-    borderColor: '#10b98130',
+    borderColor: '#bbf7d0',
   },
   premiumTitle: {
-    color: '#10b981',
+    color: '#166534',
     fontSize: 16,
     fontWeight: 'bold',
     marginBottom: 6,
   },
   premiumText: {
     color: '#64748b',
-    fontSize: 12,
+    fontSize: 13,
     marginBottom: 14,
+    lineHeight: 18,
   },
   premiumBtn: {
-    backgroundColor: '#10b981',
+    backgroundColor: '#166534',
     borderRadius: 10,
-    paddingVertical: 10,
+    paddingVertical: 12,
     alignItems: 'center',
   },
   premiumBtnText: {
@@ -221,6 +237,6 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    backgroundColor: '#060910',
+    backgroundColor: '#f8fafc',
   },
 });

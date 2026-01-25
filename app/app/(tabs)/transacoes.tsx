@@ -167,23 +167,23 @@ export default function TransacoesScreen() {
   const renderItem = ({ item }: { item: Transaction }) => (
     <View style={styles.item}>
       <TouchableOpacity style={styles.itemContent} onPress={() => openEditModal(item)}>
-        <View style={[styles.itemIcon, { backgroundColor: item.tipo === 'receita' ? '#10b98120' : '#ef444420' }]}>
+        <View style={[styles.itemIcon, { backgroundColor: item.tipo === 'receita' ? '#dcfce7' : '#fee2e2' }]}>
           <Ionicons
             name={item.tipo === 'receita' ? 'trending-up' : 'trending-down'}
             size={20}
-            color={item.tipo === 'receita' ? '#10b981' : '#ef4444'}
+            color={item.tipo === 'receita' ? '#16a34a' : '#dc2626'}
           />
         </View>
         <View style={styles.itemInfo}>
           <Text style={styles.itemDesc}>{item.descricao || item.categoria}</Text>
           <Text style={styles.itemCat}>{item.categoria} • {item.data}</Text>
         </View>
-        <Text style={[styles.itemValor, { color: item.tipo === 'receita' ? '#10b981' : '#ef4444' }]}>
+        <Text style={[styles.itemValor, { color: item.tipo === 'receita' ? '#16a34a' : '#dc2626' }]}>
           {item.tipo === 'receita' ? '+' : '-'}{formatCurrency(item.valor)}
         </Text>
       </TouchableOpacity>
       <TouchableOpacity style={styles.deleteBtn} onPress={() => handleDelete(item)}>
-        <Ionicons name="trash-outline" size={18} color="#ef4444" />
+        <Ionicons name="trash-outline" size={18} color="#dc2626" />
       </TouchableOpacity>
     </View>
   );
@@ -202,7 +202,7 @@ export default function TransacoesScreen() {
         contentContainerStyle={styles.list}
         ListEmptyComponent={
           <View style={styles.empty}>
-            <Ionicons name="receipt-outline" size={64} color="#334155" />
+            <Ionicons name="receipt-outline" size={64} color="#94a3b8" />
             <Text style={styles.emptyText}>Nenhuma transação</Text>
             <Text style={styles.emptySubtext}>Toque no + para adicionar</Text>
           </View>
@@ -248,7 +248,7 @@ export default function TransacoesScreen() {
               <TextInput
                 style={styles.inputValor}
                 placeholder="0,00"
-                placeholderTextColor="#64748b"
+                placeholderTextColor="#94a3b8"
                 value={valor}
                 onChangeText={setValor}
                 keyboardType="numeric"
@@ -259,7 +259,7 @@ export default function TransacoesScreen() {
             <TextInput
               style={styles.input}
               placeholder="Ex: Almoço no restaurante"
-              placeholderTextColor="#64748b"
+              placeholderTextColor="#94a3b8"
               value={descricao}
               onChangeText={setDescricao}
             />
@@ -294,7 +294,7 @@ export default function TransacoesScreen() {
                 style={styles.deleteBtnModal}
                 onPress={() => { setModalVisible(false); handleDelete(editingTransaction); }}
               >
-                <Ionicons name="trash-outline" size={18} color="#ef4444" />
+                <Ionicons name="trash-outline" size={18} color="#dc2626" />
                 <Text style={styles.deleteBtnText}>Excluir transação</Text>
               </TouchableOpacity>
             )}
@@ -306,46 +306,46 @@ export default function TransacoesScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0b1120' },
-  header: { padding: 20, paddingTop: Platform.OS === 'web' ? 20 : 50, borderBottomWidth: 1, borderBottomColor: '#1e293b' },
-  headerTitle: { color: '#fff', fontSize: 24, fontWeight: 'bold' },
+  container: { flex: 1, backgroundColor: '#f8fafc' },
+  header: { padding: 20, paddingTop: Platform.OS === 'web' ? 20 : 50, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#e2e8f0' },
+  headerTitle: { color: '#1e293b', fontSize: 24, fontWeight: 'bold' },
   headerSubtitle: { color: '#64748b', fontSize: 14, marginTop: 4 },
   list: { padding: 16 },
-  item: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#151f32', borderRadius: 16, marginBottom: 12, borderWidth: 1, borderColor: '#1e3a5f20' },
+  item: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: 16, marginBottom: 12, borderWidth: 1, borderColor: '#e2e8f0', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 },
   itemContent: { flex: 1, flexDirection: 'row', alignItems: 'center', padding: 16 },
   itemIcon: { width: 44, height: 44, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginRight: 14 },
   itemInfo: { flex: 1 },
-  itemDesc: { color: '#fff', fontSize: 15, fontWeight: '500' },
+  itemDesc: { color: '#1e293b', fontSize: 15, fontWeight: '500' },
   itemCat: { color: '#64748b', fontSize: 12, marginTop: 4 },
   itemValor: { fontSize: 15, fontWeight: '600' },
-  deleteBtn: { padding: 16, borderLeftWidth: 1, borderLeftColor: '#1e3a5f30' },
-  fab: { position: 'absolute', bottom: 24, right: 24, backgroundColor: '#10b981', width: 56, height: 56, borderRadius: 16, justifyContent: 'center', alignItems: 'center', shadowColor: '#10b981', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 8 },
+  deleteBtn: { padding: 16, borderLeftWidth: 1, borderLeftColor: '#e2e8f0' },
+  fab: { position: 'absolute', bottom: 24, right: 24, backgroundColor: '#166534', width: 56, height: 56, borderRadius: 16, justifyContent: 'center', alignItems: 'center', shadowColor: '#166534', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 8 },
   empty: { alignItems: 'center', paddingVertical: 60 },
   emptyText: { color: '#64748b', fontSize: 18, marginTop: 16 },
-  emptySubtext: { color: '#475569', fontSize: 14, marginTop: 4 },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.8)', justifyContent: 'flex-end' },
-  modalContent: { backgroundColor: '#151f32', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, maxHeight: '90%' },
+  emptySubtext: { color: '#94a3b8', fontSize: 14, marginTop: 4 },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  modalContent: { backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, maxHeight: '90%' },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 },
-  modalTitle: { color: '#fff', fontSize: 20, fontWeight: 'bold' },
+  modalTitle: { color: '#1e293b', fontSize: 20, fontWeight: 'bold' },
   tipoContainer: { flexDirection: 'row', gap: 12, marginBottom: 24 },
-  tipoBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, padding: 14, borderRadius: 12, backgroundColor: '#0b1120', borderWidth: 1, borderColor: '#1e3a5f30' },
-  tipoBtnDespesa: { backgroundColor: '#ef4444', borderColor: '#ef4444' },
-  tipoBtnReceita: { backgroundColor: '#10b981', borderColor: '#10b981' },
+  tipoBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, padding: 14, borderRadius: 12, backgroundColor: '#f8fafc', borderWidth: 1, borderColor: '#e2e8f0' },
+  tipoBtnDespesa: { backgroundColor: '#dc2626', borderColor: '#dc2626' },
+  tipoBtnReceita: { backgroundColor: '#16a34a', borderColor: '#16a34a' },
   tipoText: { color: '#64748b', fontWeight: '600', fontSize: 15 },
   tipoTextActive: { color: '#fff' },
-  label: { color: '#94a3b8', fontSize: 13, marginBottom: 8, fontWeight: '500' },
-  inputContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#0b1120', borderRadius: 12, marginBottom: 16, borderWidth: 1, borderColor: '#1e3a5f30' },
+  label: { color: '#64748b', fontSize: 13, marginBottom: 8, fontWeight: '500' },
+  inputContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#f8fafc', borderRadius: 12, marginBottom: 16, borderWidth: 1, borderColor: '#e2e8f0' },
   inputPrefix: { color: '#64748b', fontSize: 18, paddingLeft: 16 },
-  inputValor: { flex: 1, color: '#fff', padding: 16, fontSize: 24, fontWeight: 'bold' },
-  input: { backgroundColor: '#0b1120', color: '#fff', padding: 16, borderRadius: 12, marginBottom: 16, fontSize: 15, borderWidth: 1, borderColor: '#1e3a5f30' },
+  inputValor: { flex: 1, color: '#1e293b', padding: 16, fontSize: 24, fontWeight: 'bold' },
+  input: { backgroundColor: '#f8fafc', color: '#1e293b', padding: 16, borderRadius: 12, marginBottom: 16, fontSize: 15, borderWidth: 1, borderColor: '#e2e8f0' },
   categoriasContainer: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 24 },
-  categoriaBtn: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, backgroundColor: '#0b1120', borderWidth: 1, borderColor: '#1e3a5f30' },
-  categoriaBtnActive: { backgroundColor: '#10b981', borderColor: '#10b981' },
+  categoriaBtn: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, backgroundColor: '#f8fafc', borderWidth: 1, borderColor: '#e2e8f0' },
+  categoriaBtnActive: { backgroundColor: '#166534', borderColor: '#166534' },
   categoriaBtnText: { color: '#64748b', fontSize: 13 },
   categoriaBtnTextActive: { color: '#fff', fontWeight: '500' },
-  saveBtn: { backgroundColor: '#10b981', padding: 16, borderRadius: 12, alignItems: 'center' },
+  saveBtn: { backgroundColor: '#166534', padding: 16, borderRadius: 12, alignItems: 'center' },
   saveBtnDisabled: { opacity: 0.6 },
   saveBtnText: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
   deleteBtnModal: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, padding: 16, marginTop: 12 },
-  deleteBtnText: { color: '#ef4444', fontSize: 15 },
+  deleteBtnText: { color: '#dc2626', fontSize: 15 },
 });
