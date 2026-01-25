@@ -1,12 +1,12 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, RefreshControl, Dimensions, TouchableOpacity, TextInput, Platform, Modal } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import Svg, { Rect, Text as SvgText, Circle, Path, Defs, LinearGradient, Stop } from 'react-native-svg';
+import Svg, { Circle, G } from 'react-native-svg';
 import { Ionicons } from '@expo/vector-icons';
 
 const API_URL = 'http://localhost:8000';
 const screenWidth = Dimensions.get('window').width;
-const isWeb = Platform.OS === 'web' && screenWidth > 768;
+const isWeb = Platform.OS === 'web';
 
 interface Transaction {
   id: number;
@@ -17,42 +17,89 @@ interface Transaction {
   data: string;
 }
 
-type FilterType = 'day' | 'month' | 'year' | 'all';
+interface ContaFixa {
+  id: number;
+  nome: string;
+  valor: number;
+  dia_vencimento: number;
+  pago: boolean;
+  parcela_atual: number;
+  parcela_total: number;
+  mes_referencia: number;
+  ano_referencia: number;
+}
+
+interface Meta {
+  id: number;
+  nome: string;
+  valor_alvo: number;
+  valor_atual: number;
+  cor: string;
+}
+
+interface Investimento {
+  id: number;
+  nome: string;
+  tipo: string;
+  valor_investido: number;
+  valor_atual: number;
+  ticker: string;
+}
+
+const meses = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+const mesesCurtos = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 
 export default function DashboardScreen() {
-  const [allTransacoes, setAllTransacoes] = useState<Transaction[]>([]);
+  const [transacoes, setTransacoes] = useState<Transaction[]>([]);
+  const [contasFixas, setContasFixas] = useState<ContaFixa[]>([]);
+  const [metas, setMetas] = useState<Meta[]>([]);
+  const [investimentos, setInvestimentos] = useState<Investimento[]>([]);
   const [refreshing, setRefreshing] = useState(false);
-  const [filterType, setFilterType] = useState<FilterType>('month');
-  const [selectedDate, setSelectedDate] = useState(new Date());
-  const [showPlanModal, setShowPlanModal] = useState(false);
-  const [seedingData, setSeedingData] = useState(false);
-
-  const categoriasConfig: {[key: string]: {cor: string}} = {
-    'Alimentação': { cor: '#f59e0b' },
-    'Transporte': { cor: '#3b82f6' },
-    'Moradia': { cor: '#8b5cf6' },
-    'Lazer': { cor: '#ec4899' },
-    'Saúde': { cor: '#10b981' },
-    'Educação': { cor: '#06b6d4' },
-    'Geral': { cor: '#64748b' },
-  };
+  const [mesSelecionado, setMesSelecionado] = useState(new Date().getMonth());
+  const [anoSelecionado, setAnoSelecionado] = useState(new Date().getFullYear());
+  
+  // Modais
+  const [modalEntrada, setModalEntrada] = useState(false);
+  const [modalContaFixa, setModalContaFixa] = useState(false);
+  const [modalGasto, setModalGasto] = useState(false);
+  const [modalMeta, setModalMeta] = useState(false);
+  const [modalInvestimento, setModalInvestimento] = useState(false);
+  
+  // Forms
+  const [formNome, setFormNome] = useState('');
+  const [formValor, setFormValor] = useState('');
+  const [formCategoria, setFormCategoria] = useState('Geral');
+  const [formDia, setFormDia] = useState('1');
+  const [formParcelas, setFormParcelas] = useState('1');
+  const [formTipo, setFormTipo] = useState('');
+  const [formTicker, setFormTicker] = useState('');
 
   const fetchData = async () => {
     try {
       const token = await AsyncStorage.getItem('token');
-      const resTrans = await fetch(`${API_URL}/transactions/`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (resTrans.ok) {
-        const data = await resTrans.json();
-        setAllTransacoes(data);
-      }
+      const headers = { Authorization: `Bearer ${token}` };
+
+      // Transações
+      const resTrans = await fetch(`${API_URL}/transactions/`, { headers });
+      if (resTrans.ok) setTransacoes(await resTrans.json());
+
+      // Contas Fixas
+      const resContas = await fetch(`${API_URL}/contas-fixas/?mes=${mesSelecionado + 1}&ano=${anoSelecionado}`, { headers });
+      if (resContas.ok) setContasFixas(await resContas.json());
+
+      // Metas
+      const resMetas = await fetch(`${API_URL}/metas/`, { headers });
+      if (resMetas.ok) setMetas(await resMetas.json());
+
+      // Investimentos
+      const resInvest = await fetch(`${API_URL}/investimentos/`, { headers });
+      if (resInvest.ok) setInvestimentos(await resInvest.json());
     } catch (error) {
       console.log('Erro ao buscar dados');
     }
   };
 
-  useEffect(() => { fetchData(); }, []);
+  useEffect(() => { fetchData(); }, [mesSelecionado, anoSelecionado]);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -60,487 +107,514 @@ export default function DashboardScreen() {
     setRefreshing(false);
   };
 
-  const transacoes = useMemo(() => {
-    if (filterType === 'all') return allTransacoes;
-    return allTransacoes.filter(t => {
-      const transDate = new Date(t.data);
-      const selected = selectedDate;
-      switch (filterType) {
-        case 'day': return transDate.toDateString() === selected.toDateString();
-        case 'month': return transDate.getMonth() === selected.getMonth() && transDate.getFullYear() === selected.getFullYear();
-        case 'year': return transDate.getFullYear() === selected.getFullYear();
-        default: return true;
-      }
+  // Filtrar transações do mês
+  const transacoesMes = useMemo(() => {
+    return transacoes.filter(t => {
+      const d = new Date(t.data);
+      return d.getMonth() === mesSelecionado && d.getFullYear() === anoSelecionado;
     });
-  }, [allTransacoes, filterType, selectedDate]);
+  }, [transacoes, mesSelecionado, anoSelecionado]);
 
-  const resumo = useMemo(() => {
-    const receitas = transacoes.filter(t => t.tipo === 'receita').reduce((sum, t) => sum + t.valor, 0);
-    const despesas = transacoes.filter(t => t.tipo === 'despesa').reduce((sum, t) => sum + t.valor, 0);
-    return { receitas, despesas, saldo: receitas - despesas };
-  }, [transacoes]);
+  // Calcular totais
+  const entradas = useMemo(() => {
+    return transacoesMes.filter(t => t.tipo === 'receita');
+  }, [transacoesMes]);
 
-  const categorias = useMemo(() => {
-    const catMap: {[key: string]: number} = {};
-    transacoes.filter(t => t.tipo === 'despesa').forEach(t => {
-      catMap[t.categoria] = (catMap[t.categoria] || 0) + t.valor;
-    });
-    return Object.entries(catMap)
-      .map(([nome, valor]) => ({ nome, valor, cor: categoriasConfig[nome]?.cor || '#64748b' }))
-      .sort((a, b) => b.valor - a.valor)
-      .slice(0, 5);
-  }, [transacoes]);
+  const gastosVariaveis = useMemo(() => {
+    return transacoesMes.filter(t => t.tipo === 'despesa');
+  }, [transacoesMes]);
 
-  const lineChartData = useMemo(() => {
-    const periods: { label: string; value: number }[] = [];
-    for (let i = 6; i >= 0; i--) {
-      const date = new Date(selectedDate);
-      let label = '';
-      let periodTransactions: Transaction[] = [];
-      if (filterType === 'day' || filterType === 'month') {
-        date.setDate(selectedDate.getDate() - i);
-        label = date.getDate().toString();
-        periodTransactions = allTransacoes.filter(t => new Date(t.data).toDateString() === date.toDateString());
-      } else {
-        date.setMonth(selectedDate.getMonth() - i);
-        label = date.toLocaleString('pt-BR', { month: 'short' }).substring(0, 3);
-        periodTransactions = allTransacoes.filter(t => {
-          const tDate = new Date(t.data);
-          return tDate.getMonth() === date.getMonth() && tDate.getFullYear() === date.getFullYear();
-        });
-      }
-      const receitas = periodTransactions.filter(t => t.tipo === 'receita').reduce((sum, t) => sum + t.valor, 0);
-      const despesas = periodTransactions.filter(t => t.tipo === 'despesa').reduce((sum, t) => sum + t.valor, 0);
-      periods.push({ label, value: receitas - despesas });
-    }
-    return periods;
-  }, [allTransacoes, selectedDate, filterType]);
+  const totalEntradas = entradas.reduce((sum, t) => sum + t.valor, 0);
+  const totalContasFixas = contasFixas.reduce((sum, c) => sum + c.valor, 0);
+  const totalGastosVariaveis = gastosVariaveis.reduce((sum, t) => sum + t.valor, 0);
+  const totalSaidas = totalContasFixas + totalGastosVariaveis;
+  const restante = totalEntradas - totalSaidas;
+  const totalInvestido = investimentos.reduce((sum, i) => sum + i.valor_atual, 0);
 
-  const barChartData = useMemo(() => {
-    const weekDays = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
-    const gastosPorDia = [0, 0, 0, 0, 0, 0, 0];
-    transacoes.filter(t => t.tipo === 'despesa').forEach(t => {
-      const dayIndex = new Date(t.data).getDay();
-      gastosPorDia[dayIndex] += t.valor;
-    });
-    return weekDays.map((day, index) => ({ day, value: gastosPorDia[index] }));
-  }, [transacoes]);
-
-  const formatCurrency = (value: number) => value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-  const variacaoPercentual = resumo.despesas > 0 ? ((resumo.receitas - resumo.despesas) / resumo.despesas * 100) : 0;
-  const taxaEconomia = resumo.receitas > 0 ? ((resumo.receitas - resumo.despesas) / resumo.receitas * 100) : 0;
-  const maxCategoria = categorias.length > 0 ? Math.max(...categorias.map(c => c.valor)) : 1;
-
-  const navigatePeriod = (direction: 'prev' | 'next') => {
-    const newDate = new Date(selectedDate);
-    switch (filterType) {
-      case 'day': newDate.setDate(newDate.getDate() + (direction === 'next' ? 1 : -1)); break;
-      case 'month': newDate.setMonth(newDate.getMonth() + (direction === 'next' ? 1 : -1)); break;
-      case 'year': newDate.setFullYear(newDate.getFullYear() + (direction === 'next' ? 1 : -1)); break;
-    }
-    setSelectedDate(newDate);
+  const formatCurrency = (value: number) => {
+    return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   };
 
-  const getPeriodLabel = () => {
-    switch (filterType) {
-      case 'day': return selectedDate.toLocaleDateString('pt-BR');
-      case 'month': return selectedDate.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
-      case 'year': return selectedDate.getFullYear().toString();
-      case 'all': return 'Todo período';
-    }
+  const resetForm = () => {
+    setFormNome('');
+    setFormValor('');
+    setFormCategoria('Geral');
+    setFormDia('1');
+    setFormParcelas('1');
+    setFormTipo('');
+    setFormTicker('');
   };
 
-  const seedTestData = async () => {
-    setSeedingData(true);
+  // Criar Entrada (Receita)
+  const handleAddEntrada = async () => {
+    if (!formNome || !formValor) return;
     try {
       const token = await AsyncStorage.getItem('token');
-      const response = await fetch(`${API_URL}/transactions/seed`, {
+      const response = await fetch(`${API_URL}/transactions/`, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          descricao: formNome,
+          valor: parseFloat(formValor),
+          tipo: 'receita',
+          categoria: formCategoria,
+          data: `${anoSelecionado}-${String(mesSelecionado + 1).padStart(2, '0')}-15`
+        }),
       });
       if (response.ok) {
-        const result = await response.json();
-        if (Platform.OS === 'web') window.alert(result.message);
+        setModalEntrada(false);
+        resetForm();
         fetchData();
       }
     } catch (error) {
-      console.log('Erro ao popular dados');
-    } finally {
-      setSeedingData(false);
+      console.log('Erro ao criar entrada');
     }
   };
 
-  const LineChart = ({ width = 280, height = 120 }) => {
-    const dados = lineChartData.map(d => d.value);
-    const labels = lineChartData.map(d => d.label);
-    const max = Math.max(...dados.map(Math.abs), 1);
-    const min = Math.min(...dados, 0);
-    const range = max - min || 1;
-    const padding = { top: 15, right: 10, bottom: 25, left: 10 };
-    const graphWidth = width - padding.left - padding.right;
-    const graphHeight = height - padding.top - padding.bottom;
-    const points = dados.map((d, i) => ({
-      x: padding.left + (i / Math.max(dados.length - 1, 1)) * graphWidth,
-      y: padding.top + graphHeight - ((d - min) / range) * graphHeight,
-    }));
-    const curve = points.reduce((acc, point, i, arr) => {
-      if (i === 0) return `M ${point.x} ${point.y}`;
-      const prev = arr[i - 1];
-      const cpX = (prev.x + point.x) / 2;
-      return `${acc} C ${cpX} ${prev.y}, ${cpX} ${point.y}, ${point.x} ${point.y}`;
-    }, '');
-    const areaPath = `${curve} L ${points[points.length-1].x} ${height - padding.bottom} L ${points[0].x} ${height - padding.bottom} Z`;
+  // Criar Conta Fixa
+  const handleAddContaFixa = async () => {
+    if (!formNome || !formValor) return;
+    try {
+      const token = await AsyncStorage.getItem('token');
+      const response = await fetch(`${API_URL}/contas-fixas/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          nome: formNome,
+          valor: parseFloat(formValor),
+          dia_vencimento: parseInt(formDia),
+          categoria: formCategoria,
+          mes_referencia: mesSelecionado + 1,
+          ano_referencia: anoSelecionado,
+          parcela_atual: 1,
+          parcela_total: parseInt(formParcelas)
+        }),
+      });
+      if (response.ok) {
+        setModalContaFixa(false);
+        resetForm();
+        fetchData();
+      }
+    } catch (error) {
+      console.log('Erro ao criar conta fixa');
+    }
+  };
+
+  // Toggle Pago
+  const handleTogglePago = async (id: number) => {
+    try {
+      const token = await AsyncStorage.getItem('token');
+      await fetch(`${API_URL}/contas-fixas/${id}/toggle-pago`, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      fetchData();
+    } catch (error) {
+      console.log('Erro ao atualizar');
+    }
+  };
+
+  // Criar Gasto Variável
+  const handleAddGasto = async () => {
+    if (!formNome || !formValor) return;
+    try {
+      const token = await AsyncStorage.getItem('token');
+      const response = await fetch(`${API_URL}/transactions/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          descricao: formNome,
+          valor: parseFloat(formValor),
+          tipo: 'despesa',
+          categoria: formCategoria,
+          data: `${anoSelecionado}-${String(mesSelecionado + 1).padStart(2, '0')}-${String(formDia).padStart(2, '0')}`
+        }),
+      });
+      if (response.ok) {
+        setModalGasto(false);
+        resetForm();
+        fetchData();
+      }
+    } catch (error) {
+      console.log('Erro ao criar gasto');
+    }
+  };
+
+  // Criar Meta
+  const handleAddMeta = async () => {
+    if (!formNome || !formValor) return;
+    try {
+      const token = await AsyncStorage.getItem('token');
+      const response = await fetch(`${API_URL}/metas/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          nome: formNome,
+          valor_alvo: parseFloat(formValor),
+          categoria: formCategoria
+        }),
+      });
+      if (response.ok) {
+        setModalMeta(false);
+        resetForm();
+        fetchData();
+      }
+    } catch (error) {
+      console.log('Erro ao criar meta');
+    }
+  };
+
+  // Criar Investimento
+  const handleAddInvestimento = async () => {
+    if (!formNome || !formValor || !formTipo) return;
+    try {
+      const token = await AsyncStorage.getItem('token');
+      const response = await fetch(`${API_URL}/investimentos/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          nome: formNome,
+          tipo: formTipo,
+          valor_investido: parseFloat(formValor),
+          valor_atual: parseFloat(formValor),
+          ticker: formTicker
+        }),
+      });
+      if (response.ok) {
+        setModalInvestimento(false);
+        resetForm();
+        fetchData();
+      }
+    } catch (error) {
+      console.log('Erro ao criar investimento');
+    }
+  };
+
+  // Gráfico Donut
+  const DonutChart = ({ disponivel, total }: { disponivel: number; total: number }) => {
+    const size = 160;
+    const strokeWidth = 15;
+    const radius = (size - strokeWidth) / 2;
+    const circumference = radius * 2 * Math.PI;
+    const percentage = total > 0 ? Math.max(0, Math.min(100, (disponivel / total) * 100)) : 0;
+    const strokeDashoffset = circumference - (percentage / 100) * circumference;
+
     return (
-      <Svg height={height} width={width}>
-        <Defs>
-          <LinearGradient id="lineGrad" x1="0" y1="0" x2="0" y2="1">
-            <Stop offset="0%" stopColor="#10b981" stopOpacity="0.3" />
-            <Stop offset="100%" stopColor="#10b981" stopOpacity="0" />
-          </LinearGradient>
-        </Defs>
-        <Path d={areaPath} fill="url(#lineGrad)" />
-        <Path d={curve} fill="none" stroke="#10b981" strokeWidth="2.5" />
-        {points.map((p, i) => (
-          <React.Fragment key={i}>
-            <Circle cx={p.x} cy={p.y} r="4" fill="#0d1520" stroke="#10b981" strokeWidth="2" />
-            <SvgText x={p.x} y={height - 5} fill="#4a5568" fontSize="10" textAnchor="middle">{labels[i]}</SvgText>
-          </React.Fragment>
-        ))}
-      </Svg>
+      <View style={{ alignItems: 'center' }}>
+        <Svg width={size} height={size}>
+          <G rotation="-90" origin={`${size / 2}, ${size / 2}`}>
+            <Circle cx={size / 2} cy={size / 2} r={radius} stroke="#e5e7eb" strokeWidth={strokeWidth} fill="none" />
+            <Circle cx={size / 2} cy={size / 2} r={radius} stroke="#10b981" strokeWidth={strokeWidth} fill="none" strokeDasharray={circumference} strokeDashoffset={strokeDashoffset} strokeLinecap="round" />
+          </G>
+        </Svg>
+        <View style={styles.donutCenter}>
+          <Text style={styles.donutLabel}>Disponível</Text>
+          <Text style={[styles.donutValue, { color: disponivel >= 0 ? '#10b981' : '#ef4444' }]}>{formatCurrency(disponivel)}</Text>
+        </View>
+      </View>
     );
   };
 
-  const BarChart = ({ width = 200, height = 120 }) => {
-    const filteredData = barChartData.filter((_, i) => i >= 1 && i <= 5);
-    const max = Math.max(...filteredData.map(d => d.value), 1);
-    const barWidth = 24;
-    const gap = (width - barWidth * 5) / 6;
-    return (
-      <Svg height={height} width={width}>
-        <Defs>
-          <LinearGradient id="barGrad1" x1="0" y1="0" x2="0" y2="1">
-            <Stop offset="0%" stopColor="#10b981" />
-            <Stop offset="100%" stopColor="#059669" />
-          </LinearGradient>
-          <LinearGradient id="barGrad2" x1="0" y1="0" x2="0" y2="1">
-            <Stop offset="0%" stopColor="#3b82f6" />
-            <Stop offset="100%" stopColor="#1d4ed8" />
-          </LinearGradient>
-        </Defs>
-        {filteredData.map((d, i) => {
-          const barHeight = Math.max((d.value / max) * (height - 30), 5);
-          const x = gap + i * (barWidth + gap);
-          return (
-            <React.Fragment key={i}>
-              <Rect x={x} y={height - 25 - barHeight} width={barWidth} height={barHeight} fill={i % 2 === 0 ? "url(#barGrad1)" : "url(#barGrad2)"} rx={6} />
-              <SvgText x={x + barWidth/2} y={height - 8} fill="#4a5568" fontSize="9" textAnchor="middle">{d.day}</SvgText>
-            </React.Fragment>
-          );
-        })}
-      </Svg>
-    );
-  };
-
-  const FilterBar = () => (
-    <View style={styles.filterContainer}>
-      <View style={styles.filterTabs}>
-        {(['day', 'month', 'year', 'all'] as FilterType[]).map((type) => (
-          <TouchableOpacity key={type} style={[styles.filterTab, filterType === type && styles.filterTabActive]} onPress={() => setFilterType(type)}>
-            <Text style={[styles.filterTabText, filterType === type && styles.filterTabTextActive]}>
-              {type === 'day' ? 'Dia' : type === 'month' ? 'Mês' : type === 'year' ? 'Ano' : 'Tudo'}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-      {filterType !== 'all' && (
-        <View style={styles.periodNavigator}>
-          <TouchableOpacity onPress={() => navigatePeriod('prev')} style={styles.periodBtn}>
-            <Ionicons name="chevron-back" size={20} color="#fff" />
-          </TouchableOpacity>
-          <Text style={styles.periodLabel}>{getPeriodLabel()}</Text>
-          <TouchableOpacity onPress={() => navigatePeriod('next')} style={styles.periodBtn}>
-            <Ionicons name="chevron-forward" size={20} color="#fff" />
-          </TouchableOpacity>
-        </View>
-      )}
-    </View>
-  );
-
-  const Header = () => (
-    <View style={styles.header}>
-      {isWeb && (
-        <View style={styles.searchContainer}>
-          <Ionicons name="search" size={18} color="#4a5568" />
-          <TextInput style={styles.searchInput} placeholder="Search" placeholderTextColor="#4a5568" />
-        </View>
-      )}
-      <View style={styles.headerRight}>
-        <TouchableOpacity style={styles.headerIcon} onPress={seedTestData} disabled={seedingData}>
-          <Ionicons name={seedingData ? "hourglass" : "flask"} size={22} color={seedingData ? "#f59e0b" : "#fff"} />
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.headerIcon}>
-          <Ionicons name="notifications-outline" size={22} color="#fff" />
-        </TouchableOpacity>
-        <View style={styles.avatar}><Text style={styles.avatarText}>C</Text></View>
-      </View>
-    </View>
-  );
-
-  const ActivityItem = ({ transaction }: { transaction: Transaction }) => (
-    <View style={styles.activityItem}>
-      <View style={[styles.activityIcon, { backgroundColor: transaction.tipo === 'receita' ? '#10b98120' : '#3b82f620' }]}>
-        <Ionicons name={transaction.tipo === 'receita' ? 'trending-up' : 'trending-down'} size={18} color={transaction.tipo === 'receita' ? '#10b981' : '#3b82f6'} />
-      </View>
-      <View style={styles.activityInfo}>
-        <Text style={styles.activityName}>{transaction.descricao || transaction.categoria}</Text>
-        <Text style={styles.activityDate}>{transaction.data}</Text>
-      </View>
-      <Text style={[styles.activityValue, { color: transaction.tipo === 'receita' ? '#10b981' : '#ef4444' }]}>
-        {transaction.tipo === 'receita' ? '+' : '-'}{transaction.valor?.toFixed(2)}
-      </Text>
-    </View>
-  );
-
-  const PlanModal = () => (
-    <Modal visible={showPlanModal} transparent animationType="slide">
+  // Modal genérico
+  const FormModal = ({ visible, onClose, title, onSave, children }: any) => (
+    <Modal visible={visible} transparent animationType="slide">
       <View style={styles.modalOverlay}>
         <View style={styles.modalContent}>
           <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Escolha seu Plano</Text>
-            <TouchableOpacity onPress={() => setShowPlanModal(false)}>
+            <Text style={styles.modalTitle}>{title}</Text>
+            <TouchableOpacity onPress={onClose}>
               <Ionicons name="close" size={24} color="#64748b" />
             </TouchableOpacity>
           </View>
-          <View style={[styles.planCard, styles.planCardFree]}>
-            <View style={styles.planBadge}><Text style={styles.planBadgeText}>Atual</Text></View>
-            <Text style={styles.planName}>Free</Text>
-            <Text style={styles.planPrice}>R$ 0<Text style={styles.planPeriod}>/mês</Text></Text>
-            <View style={styles.planFeatures}>
-              <Text style={styles.planFeature}>✓ Até 50 transações/mês</Text>
-              <Text style={styles.planFeature}>✓ Dashboard básico</Text>
-              <Text style={styles.planFeature}>✓ 5 consultas ao Assessor IA</Text>
-            </View>
-          </View>
-          <View style={[styles.planCard, styles.planCardPro]}>
-            <View style={[styles.planBadge, styles.planBadgePro]}><Text style={styles.planBadgeText}>Popular</Text></View>
-            <Text style={styles.planName}>Pro</Text>
-            <Text style={styles.planPrice}>R$ 19,90<Text style={styles.planPeriod}>/mês</Text></Text>
-            <View style={styles.planFeatures}>
-              <Text style={styles.planFeature}>✓ Transações ilimitadas</Text>
-              <Text style={styles.planFeature}>✓ Dashboard avançado</Text>
-              <Text style={styles.planFeature}>✓ Assessor IA ilimitado</Text>
-              <Text style={styles.planFeature}>✓ Exportar relatórios</Text>
-            </View>
-            <TouchableOpacity style={styles.planButton}><Text style={styles.planButtonText}>Assinar Pro</Text></TouchableOpacity>
-          </View>
-          <View style={styles.planCard}>
-            <Text style={styles.planName}>Premium</Text>
-            <Text style={styles.planPrice}>R$ 39,90<Text style={styles.planPeriod}>/mês</Text></Text>
-            <View style={styles.planFeatures}>
-              <Text style={styles.planFeature}>✓ Tudo do Pro + Investimentos</Text>
-              <Text style={styles.planFeature}>✓ Múltiplas contas</Text>
-            </View>
-            <TouchableOpacity style={[styles.planButton, styles.planButtonOutline]}><Text style={[styles.planButtonText, styles.planButtonTextOutline]}>Assinar Premium</Text></TouchableOpacity>
-          </View>
+          {children}
+          <TouchableOpacity style={styles.saveBtn} onPress={onSave}>
+            <Text style={styles.saveBtnText}>Salvar</Text>
+          </TouchableOpacity>
         </View>
       </View>
     </Modal>
   );
 
+  // Card Header
+  const CardHeader = ({ title, onAdd, color = '#166534' }: { title: string; onAdd: () => void; color?: string }) => (
+    <View style={[styles.cardHeader, { backgroundColor: color }]}>
+      <Text style={styles.cardHeaderText}>{title}</Text>
+      <TouchableOpacity onPress={onAdd} style={styles.addBtn}>
+        <Ionicons name="add" size={20} color="#fff" />
+      </TouchableOpacity>
+    </View>
+  );
+
   return (
     <View style={styles.container}>
-      <Header />
-      <FilterBar />
       <ScrollView style={styles.scrollView} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#10b981" />}>
-        <View style={styles.mainContent}>
-          <View style={styles.leftColumn}>
-            <View style={styles.portfolioCard}>
-              <View style={styles.portfolioHeader}>
-                <Text style={styles.portfolioTitle}>My Portfolio</Text>
-                <TouchableOpacity><Ionicons name="ellipsis-horizontal" size={20} color="#4a5568" /></TouchableOpacity>
-              </View>
-              <Text style={styles.portfolioLabel}>Total Balance</Text>
-              <View style={styles.portfolioValueRow}>
-                <Text style={styles.portfolioValue}>{formatCurrency(resumo.saldo)}</Text>
-                <View style={[styles.badge, { backgroundColor: variacaoPercentual >= 0 ? '#10b98120' : '#ef444420' }]}>
-                  <Text style={[styles.badgeText, { color: variacaoPercentual >= 0 ? '#10b981' : '#ef4444' }]}>{variacaoPercentual >= 0 ? '+' : ''}{variacaoPercentual.toFixed(1)}%</Text>
-                </View>
-              </View>
-              <Text style={styles.portfolioDesc}>Visão geral das suas finanças</Text>
-              <TouchableOpacity style={styles.exploreBtn} onPress={() => setShowPlanModal(true)}><Text style={styles.exploreBtnText}>Explore Dashboard</Text></TouchableOpacity>
-            </View>
-
-            <Text style={styles.sectionTitle}>Analysis</Text>
-            <View style={styles.metricsRow}>
-              <View style={styles.metricCard}>
-                <View style={styles.metricHeader}><View style={[styles.metricIcon, { backgroundColor: '#10b98120' }]}><Ionicons name="diamond-outline" size={20} color="#10b981" /></View></View>
-                <Text style={styles.metricLabel}>Receitas</Text>
-                <View style={styles.metricValueRow}>
-                  <Text style={styles.metricValue}>{resumo.receitas >= 1000 ? `${(resumo.receitas/1000).toFixed(1)}k` : resumo.receitas.toFixed(0)}</Text>
-                  <Text style={styles.metricPeriod}>Este mês</Text>
-                </View>
-              </View>
-              <View style={styles.metricCard}>
-                <View style={styles.metricHeader}><View style={[styles.metricIcon, { backgroundColor: '#3b82f620' }]}><Ionicons name="eye-outline" size={20} color="#3b82f6" /></View></View>
-                <Text style={styles.metricLabel}>Despesas</Text>
-                <View style={styles.metricValueRow}>
-                  <Text style={styles.metricValue}>{resumo.despesas >= 1000 ? `${(resumo.despesas/1000).toFixed(1)}k` : resumo.despesas.toFixed(0)}</Text>
-                  <Text style={styles.metricPeriod}>Este mês</Text>
-                </View>
-              </View>
-              <View style={styles.metricCard}>
-                <View style={styles.metricHeader}><View style={[styles.metricIcon, { backgroundColor: '#f59e0b20' }]}><Ionicons name="apps-outline" size={20} color="#f59e0b" /></View></View>
-                <Text style={styles.metricLabel}>Economia</Text>
-                <View style={styles.metricValueRow}>
-                  <Text style={styles.metricValue}>{taxaEconomia.toFixed(0)}%</Text>
-                  <Text style={styles.metricPeriod}>Taxa</Text>
-                </View>
-              </View>
-            </View>
-
-            <Text style={styles.sectionTitle}>Gráficos</Text>
-            <View style={styles.chartsRow}>
-              <View style={styles.chartCard}>
-                <View style={styles.chartHeader}><Text style={styles.chartLabel}>Evolução</Text></View>
-                <Text style={styles.chartValue}>{transacoes.length}</Text>
-                <LineChart width={isWeb ? 280 : screenWidth * 0.42} height={100} />
-              </View>
-              <View style={styles.chartCard}>
-                <View style={styles.chartHeader}><Text style={styles.chartLabel}>Gastos/Dia</Text></View>
-                <Text style={[styles.chartValue, { color: taxaEconomia > 0 ? '#10b981' : '#ef4444' }]}>{taxaEconomia > 0 ? '+' : ''}{taxaEconomia.toFixed(1)}%</Text>
-                <BarChart width={isWeb ? 200 : screenWidth * 0.38} height={100} />
-              </View>
-            </View>
+        
+        {/* Header */}
+        <View style={styles.header}>
+          <View style={styles.logoContainer}>
+            <Ionicons name="wallet-outline" size={24} color="#166534" />
+            <Text style={styles.logoText}>Finex</Text>
           </View>
-
-          {isWeb && (
-            <View style={styles.rightColumn}>
-              <View style={styles.activityCard}>
-                <View style={styles.activityHeader}><Text style={styles.activityTitle}>Activity</Text><Text style={styles.viewAll}>View All</Text></View>
-                {transacoes.length > 0 ? transacoes.slice(0, 4).map((t, i) => <ActivityItem key={i} transaction={t} />) : <Text style={styles.emptyText}>Nenhuma transação</Text>}
-              </View>
-              <View style={styles.categoryCard}>
-                <Text style={styles.categoryTitle}>Por Categoria</Text>
-                {categorias.length > 0 ? categorias.map((cat, i) => (
-                  <View key={i} style={styles.categoryItem}>
-                    <Text style={styles.categoryValue}>{formatCurrency(cat.valor).replace('R$', '').trim()}</Text>
-                    <Text style={styles.categoryLabel}>{cat.nome}</Text>
-                    <View style={styles.categoryBarBg}><View style={[styles.categoryBar, { width: `${(cat.valor / maxCategoria) * 100}%`, backgroundColor: cat.cor }]} /></View>
-                  </View>
-                )) : <Text style={styles.emptyText}>Sem categorias</Text>}
-              </View>
-            </View>
-          )}
         </View>
 
-        {!isWeb && (
-          <View style={styles.mobileSection}>
-            <View style={styles.activityCard}>
-              <View style={styles.activityHeader}><Text style={styles.activityTitle}>Activity</Text><Text style={styles.viewAll}>View All</Text></View>
-              {transacoes.length > 0 ? transacoes.slice(0, 4).map((t, i) => <ActivityItem key={i} transaction={t} />) : <Text style={styles.emptyText}>Nenhuma transação</Text>}
-            </View>
-            <View style={styles.categoryCard}>
-              <Text style={styles.categoryTitle}>Por Categoria</Text>
-              {categorias.length > 0 ? categorias.map((cat, i) => (
-                <View key={i} style={styles.categoryItem}>
-                  <Text style={styles.categoryValue}>{formatCurrency(cat.valor).replace('R$', '').trim()}</Text>
-                  <Text style={styles.categoryLabel}>{cat.nome}</Text>
-                  <View style={styles.categoryBarBg}><View style={[styles.categoryBar, { width: `${(cat.valor / maxCategoria) * 100}%`, backgroundColor: cat.cor }]} /></View>
+        {/* Navegação por Mês */}
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.monthsNav} contentContainerStyle={styles.monthsNavContent}>
+          {mesesCurtos.map((mes, index) => (
+            <TouchableOpacity
+              key={index}
+              style={[styles.monthTab, mesSelecionado === index && styles.monthTabActive]}
+              onPress={() => setMesSelecionado(index)}
+            >
+              <Text style={[styles.monthTabText, mesSelecionado === index && styles.monthTabTextActive]}>{mes}</Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+
+        {/* Grid Principal */}
+        <View style={styles.mainGrid}>
+          
+          {/* Card Entradas */}
+          <View style={styles.card}>
+            <CardHeader title="↑ Entradas" onAdd={() => setModalEntrada(true)} />
+            <View style={styles.cardBody}>
+              <View style={styles.tableHeader}>
+                <Text style={[styles.tableHeaderText, { flex: 2 }]}>NOME</Text>
+                <Text style={[styles.tableHeaderText, { flex: 1 }]}>VALOR (R$)</Text>
+              </View>
+              {entradas.length > 0 ? entradas.slice(0, 5).map((e, i) => (
+                <View key={i} style={styles.tableRow}>
+                  <Text style={[styles.tableCell, { flex: 2 }]}>{e.descricao}</Text>
+                  <Text style={[styles.tableCell, { flex: 1, color: '#10b981' }]}>{formatCurrency(e.valor)}</Text>
                 </View>
-              )) : <Text style={styles.emptyText}>Sem despesas</Text>}
+              )) : <Text style={styles.emptyText}>Nenhuma entrada</Text>}
+              <View style={styles.totalRow}>
+                <Text style={styles.totalLabel}>Total</Text>
+                <Text style={styles.totalValue}>{formatCurrency(totalEntradas)}</Text>
+              </View>
             </View>
           </View>
-        )}
-        <View style={{ height: 30 }} />
+
+          {/* Card Restante para Gastar */}
+          <View style={styles.card}>
+            <View style={[styles.cardHeader, { backgroundColor: '#166534' }]}>
+              <Text style={styles.cardHeaderText}>Restante para Gastar</Text>
+            </View>
+            <View style={[styles.cardBody, { alignItems: 'center', paddingVertical: 20 }]}>
+              <DonutChart disponivel={restante} total={totalEntradas} />
+              <View style={styles.summaryRow}>
+                <View style={styles.summaryItem}>
+                  <Text style={styles.summaryLabel}>Total de Entradas →</Text>
+                  <Text style={[styles.summaryValue, { color: '#10b981' }]}>{formatCurrency(totalEntradas)}</Text>
+                  <Text style={styles.summaryPercent}>↑ 12%</Text>
+                </View>
+                <View style={styles.summaryItem}>
+                  <Text style={styles.summaryLabel}>Total de Saídas →</Text>
+                  <Text style={[styles.summaryValue, { color: '#ef4444' }]}>{formatCurrency(totalSaidas)}</Text>
+                  <Text style={[styles.summaryPercent, { color: '#ef4444' }]}>↓ 5%</Text>
+                </View>
+              </View>
+            </View>
+          </View>
+
+          {/* Card Contas Fixas */}
+          <View style={styles.card}>
+            <CardHeader title="📋 Contas Fixas" onAdd={() => setModalContaFixa(true)} />
+            <View style={styles.cardBody}>
+              <View style={styles.tableHeader}>
+                <Text style={[styles.tableHeaderText, { width: 40 }]}>PAGO</Text>
+                <Text style={[styles.tableHeaderText, { flex: 2 }]}>NOME</Text>
+                <Text style={[styles.tableHeaderText, { flex: 1 }]}>PARC.</Text>
+                <Text style={[styles.tableHeaderText, { flex: 1 }]}>VALOR</Text>
+              </View>
+              {contasFixas.length > 0 ? contasFixas.slice(0, 5).map((c, i) => (
+                <View key={i} style={styles.tableRow}>
+                  <TouchableOpacity style={{ width: 40 }} onPress={() => handleTogglePago(c.id)}>
+                    <Ionicons name={c.pago ? "checkbox" : "square-outline"} size={22} color={c.pago ? "#10b981" : "#cbd5e1"} />
+                  </TouchableOpacity>
+                  <Text style={[styles.tableCell, { flex: 2 }]}>{c.nome}</Text>
+                  <Text style={[styles.tableCell, { flex: 1 }]}>{c.parcela_atual}/{c.parcela_total}</Text>
+                  <Text style={[styles.tableCell, { flex: 1 }]}>{formatCurrency(c.valor)}</Text>
+                </View>
+              )) : <Text style={styles.emptyText}>Nenhuma conta fixa</Text>}
+            </View>
+          </View>
+
+          {/* Card Gastos Variáveis */}
+          <View style={[styles.card, styles.cardWide]}>
+            <CardHeader title="🛒 Gastos Variáveis" onAdd={() => setModalGasto(true)} />
+            <View style={styles.cardBody}>
+              <View style={styles.tableHeader}>
+                <Text style={[styles.tableHeaderText, { flex: 1 }]}>CATEGORIA</Text>
+                <Text style={[styles.tableHeaderText, { flex: 1 }]}>VALOR (R$)</Text>
+                <Text style={[styles.tableHeaderText, { flex: 1 }]}>DATA</Text>
+                <Text style={[styles.tableHeaderText, { flex: 2 }]}>OBS</Text>
+              </View>
+              {gastosVariaveis.length > 0 ? gastosVariaveis.slice(0, 6).map((g, i) => (
+                <View key={i} style={styles.tableRow}>
+                  <Text style={[styles.tableCell, { flex: 1 }]}>{g.categoria}</Text>
+                  <Text style={[styles.tableCell, { flex: 1, color: '#ef4444' }]}>{formatCurrency(g.valor)}</Text>
+                  <Text style={[styles.tableCell, { flex: 1 }]}>{new Date(g.data).toLocaleDateString('pt-BR')}</Text>
+                  <Text style={[styles.tableCell, { flex: 2 }]}>{g.descricao}</Text>
+                </View>
+              )) : <Text style={styles.emptyText}>Nenhum gasto variável</Text>}
+            </View>
+          </View>
+
+          {/* Card Investimentos */}
+          <View style={styles.card}>
+            <CardHeader title="📈 Investimentos" onAdd={() => setModalInvestimento(true)} />
+            <View style={styles.cardBody}>
+              <View style={styles.tableHeader}>
+                <Text style={[styles.tableHeaderText, { flex: 2 }]}>NOME</Text>
+                <Text style={[styles.tableHeaderText, { flex: 1 }]}>VALOR (R$)</Text>
+              </View>
+              {investimentos.length > 0 ? investimentos.slice(0, 4).map((inv, i) => (
+                <View key={i} style={styles.tableRow}>
+                  <Text style={[styles.tableCell, { flex: 2 }]}>{inv.nome}</Text>
+                  <Text style={[styles.tableCell, { flex: 1, color: '#3b82f6' }]}>{formatCurrency(inv.valor_atual)}</Text>
+                </View>
+              )) : <Text style={styles.emptyText}>Nenhum investimento</Text>}
+              <View style={styles.totalRow}>
+                <Text style={styles.totalLabel}>Total</Text>
+                <Text style={[styles.totalValue, { color: '#3b82f6' }]}>{formatCurrency(totalInvestido)}</Text>
+              </View>
+            </View>
+          </View>
+
+          {/* Card Metas */}
+          <View style={styles.card}>
+            <CardHeader title="🎯 Metas Financeiras" onAdd={() => setModalMeta(true)} />
+            <View style={styles.cardBody}>
+              {metas.length > 0 ? metas.slice(0, 4).map((m, i) => {
+                const progresso = m.valor_alvo > 0 ? (m.valor_atual / m.valor_alvo) * 100 : 0;
+                return (
+                  <View key={i} style={styles.metaItem}>
+                    <Text style={styles.metaName}>{m.nome}</Text>
+                    <View style={styles.metaBarBg}>
+                      <View style={[styles.metaBar, { width: `${Math.min(progresso, 100)}%`, backgroundColor: m.cor }]} />
+                    </View>
+                    <Text style={styles.metaPercent}>{progresso.toFixed(0)}%</Text>
+                  </View>
+                );
+              }) : <Text style={styles.emptyText}>Nenhuma meta</Text>}
+            </View>
+          </View>
+
+        </View>
       </ScrollView>
-      <PlanModal />
+
+      {/* Modal Entrada */}
+      <FormModal visible={modalEntrada} onClose={() => { setModalEntrada(false); resetForm(); }} title="Nova Entrada" onSave={handleAddEntrada}>
+        <Text style={styles.inputLabel}>Nome</Text>
+        <TextInput style={styles.input} value={formNome} onChangeText={setFormNome} placeholder="Ex: Salário" placeholderTextColor="#94a3b8" />
+        <Text style={styles.inputLabel}>Valor</Text>
+        <TextInput style={styles.input} value={formValor} onChangeText={setFormValor} placeholder="0,00" keyboardType="numeric" placeholderTextColor="#94a3b8" />
+      </FormModal>
+
+      {/* Modal Conta Fixa */}
+      <FormModal visible={modalContaFixa} onClose={() => { setModalContaFixa(false); resetForm(); }} title="Nova Conta Fixa" onSave={handleAddContaFixa}>
+        <Text style={styles.inputLabel}>Nome</Text>
+        <TextInput style={styles.input} value={formNome} onChangeText={setFormNome} placeholder="Ex: Aluguel" placeholderTextColor="#94a3b8" />
+        <Text style={styles.inputLabel}>Valor</Text>
+        <TextInput style={styles.input} value={formValor} onChangeText={setFormValor} placeholder="0,00" keyboardType="numeric" placeholderTextColor="#94a3b8" />
+        <Text style={styles.inputLabel}>Dia do Vencimento</Text>
+        <TextInput style={styles.input} value={formDia} onChangeText={setFormDia} placeholder="1" keyboardType="numeric" placeholderTextColor="#94a3b8" />
+        <Text style={styles.inputLabel}>Parcelas</Text>
+        <TextInput style={styles.input} value={formParcelas} onChangeText={setFormParcelas} placeholder="1" keyboardType="numeric" placeholderTextColor="#94a3b8" />
+      </FormModal>
+
+      {/* Modal Gasto */}
+      <FormModal visible={modalGasto} onClose={() => { setModalGasto(false); resetForm(); }} title="Novo Gasto" onSave={handleAddGasto}>
+        <Text style={styles.inputLabel}>Descrição</Text>
+        <TextInput style={styles.input} value={formNome} onChangeText={setFormNome} placeholder="Ex: Supermercado" placeholderTextColor="#94a3b8" />
+        <Text style={styles.inputLabel}>Valor</Text>
+        <TextInput style={styles.input} value={formValor} onChangeText={setFormValor} placeholder="0,00" keyboardType="numeric" placeholderTextColor="#94a3b8" />
+        <Text style={styles.inputLabel}>Categoria</Text>
+        <TextInput style={styles.input} value={formCategoria} onChangeText={setFormCategoria} placeholder="Alimentação" placeholderTextColor="#94a3b8" />
+        <Text style={styles.inputLabel}>Dia</Text>
+        <TextInput style={styles.input} value={formDia} onChangeText={setFormDia} placeholder="1" keyboardType="numeric" placeholderTextColor="#94a3b8" />
+      </FormModal>
+
+      {/* Modal Meta */}
+      <FormModal visible={modalMeta} onClose={() => { setModalMeta(false); resetForm(); }} title="Nova Meta" onSave={handleAddMeta}>
+        <Text style={styles.inputLabel}>Nome</Text>
+        <TextInput style={styles.input} value={formNome} onChangeText={setFormNome} placeholder="Ex: Viagem" placeholderTextColor="#94a3b8" />
+        <Text style={styles.inputLabel}>Valor Alvo</Text>
+        <TextInput style={styles.input} value={formValor} onChangeText={setFormValor} placeholder="0,00" keyboardType="numeric" placeholderTextColor="#94a3b8" />
+      </FormModal>
+
+      {/* Modal Investimento */}
+      <FormModal visible={modalInvestimento} onClose={() => { setModalInvestimento(false); resetForm(); }} title="Novo Investimento" onSave={handleAddInvestimento}>
+        <Text style={styles.inputLabel}>Nome</Text>
+        <TextInput style={styles.input} value={formNome} onChangeText={setFormNome} placeholder="Ex: Tesouro Selic" placeholderTextColor="#94a3b8" />
+        <Text style={styles.inputLabel}>Tipo</Text>
+        <TextInput style={styles.input} value={formTipo} onChangeText={setFormTipo} placeholder="Renda Fixa, Ações, FII..." placeholderTextColor="#94a3b8" />
+        <Text style={styles.inputLabel}>Valor</Text>
+        <TextInput style={styles.input} value={formValor} onChangeText={setFormValor} placeholder="0,00" keyboardType="numeric" placeholderTextColor="#94a3b8" />
+        <Text style={styles.inputLabel}>Ticker (opcional)</Text>
+        <TextInput style={styles.input} value={formTicker} onChangeText={setFormTicker} placeholder="PETR4" placeholderTextColor="#94a3b8" />
+      </FormModal>
+
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0b1120' },
+  container: { flex: 1, backgroundColor: '#f8fafc' },
   scrollView: { flex: 1 },
-  filterContainer: { paddingHorizontal: 24, paddingBottom: 8, backgroundColor: '#0b1120' },
-  filterTabs: { flexDirection: 'row', backgroundColor: '#151f32', borderRadius: 12, padding: 4, marginBottom: 12 },
-  filterTab: { flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: 10 },
-  filterTabActive: { backgroundColor: '#10b981' },
-  filterTabText: { color: '#64748b', fontSize: 13, fontWeight: '500' },
-  filterTabTextActive: { color: '#fff' },
-  periodNavigator: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 16 },
-  periodBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#151f32', justifyContent: 'center', alignItems: 'center' },
-  periodLabel: { color: '#fff', fontSize: 16, fontWeight: '600', minWidth: 150, textAlign: 'center', textTransform: 'capitalize' },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 24, paddingVertical: 16, paddingTop: isWeb ? 16 : 50, backgroundColor: '#0b1120' },
-  searchContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#151f32', borderRadius: 12, paddingHorizontal: 16, paddingVertical: 10, width: 280 },
-  searchInput: { color: '#fff', marginLeft: 10, fontSize: 14, flex: 1 },
-  headerRight: { flexDirection: 'row', alignItems: 'center', gap: 12, marginLeft: 'auto' },
-  headerIcon: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#151f32', justifyContent: 'center', alignItems: 'center' },
-  avatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#10b981', justifyContent: 'center', alignItems: 'center' },
-  avatarText: { color: '#fff', fontWeight: 'bold', fontSize: 16 },
-  mainContent: { flexDirection: isWeb ? 'row' : 'column', padding: 24, paddingTop: 8, gap: 24 },
-  leftColumn: { flex: isWeb ? 2 : 1 },
-  rightColumn: { width: 300 },
-  portfolioCard: { backgroundColor: '#151f32', borderRadius: 20, padding: 24, marginBottom: 24, borderWidth: 1, borderColor: '#1e3a5f20' },
-  portfolioHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16 },
-  portfolioTitle: { color: '#fff', fontSize: 20, fontWeight: 'bold' },
-  portfolioLabel: { color: '#4a5568', fontSize: 13, marginBottom: 4 },
-  portfolioValueRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 4 },
-  portfolioValue: { color: '#fff', fontSize: 32, fontWeight: 'bold' },
-  badge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
-  badgeText: { fontSize: 13, fontWeight: '600' },
-  portfolioDesc: { color: '#4a5568', fontSize: 13, marginBottom: 16 },
-  exploreBtn: { backgroundColor: '#10b981', borderRadius: 12, paddingVertical: 12, paddingHorizontal: 20, alignSelf: 'flex-start' },
-  exploreBtnText: { color: '#fff', fontWeight: '600', fontSize: 14 },
-  sectionTitle: { color: '#fff', fontSize: 18, fontWeight: '600', marginBottom: 16 },
-  metricsRow: { flexDirection: 'row', gap: 12, marginBottom: 24 },
-  metricCard: { flex: 1, backgroundColor: '#151f32', borderRadius: 16, padding: 16, borderWidth: 1, borderColor: '#1e3a5f20' },
-  metricHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 },
-  metricIcon: { width: 36, height: 36, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
-  metricLabel: { color: '#4a5568', fontSize: 12, marginBottom: 4 },
-  metricValueRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
-  metricValue: { color: '#fff', fontSize: 22, fontWeight: 'bold' },
-  metricPeriod: { color: '#10b981', fontSize: 11 },
-  chartsRow: { flexDirection: 'row', gap: 12 },
-  chartCard: { flex: 1, backgroundColor: '#151f32', borderRadius: 16, padding: 16, borderWidth: 1, borderColor: '#1e3a5f20' },
-  chartHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 },
-  chartLabel: { color: '#4a5568', fontSize: 12 },
-  chartValue: { color: '#fff', fontSize: 24, fontWeight: 'bold', marginBottom: 8 },
-  activityCard: { backgroundColor: '#151f32', borderRadius: 20, padding: 20, marginBottom: 16, borderWidth: 1, borderColor: '#1e3a5f20' },
-  activityHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16 },
-  activityTitle: { color: '#fff', fontSize: 16, fontWeight: '600' },
-  viewAll: { color: '#10b981', fontSize: 13 },
-  activityItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10 },
-  activityIcon: { width: 40, height: 40, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginRight: 12 },
-  activityInfo: { flex: 1 },
-  activityName: { color: '#fff', fontSize: 14, fontWeight: '500' },
-  activityDate: { color: '#4a5568', fontSize: 11, marginTop: 2 },
-  activityValue: { fontSize: 14, fontWeight: '600' },
-  categoryCard: { backgroundColor: '#151f32', borderRadius: 20, padding: 20, borderWidth: 1, borderColor: '#1e3a5f20', marginBottom: 16 },
-  categoryTitle: { color: '#fff', fontSize: 16, fontWeight: '600', marginBottom: 16 },
-  categoryItem: { marginBottom: 16 },
-  categoryValue: { color: '#fff', fontSize: 18, fontWeight: 'bold' },
-  categoryLabel: { color: '#4a5568', fontSize: 11, marginBottom: 6 },
-  categoryBarBg: { height: 6, backgroundColor: '#0b1120', borderRadius: 3 },
-  categoryBar: { height: 6, borderRadius: 3 },
-  mobileSection: { paddingHorizontal: 24 },
-  emptyText: { color: '#4a5568', textAlign: 'center', paddingVertical: 20 },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'center', padding: 20 },
-  modalContent: { backgroundColor: '#151f32', borderRadius: 24, padding: 24, maxHeight: '90%' },
-  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 },
-  modalTitle: { color: '#fff', fontSize: 22, fontWeight: 'bold' },
-  planCard: { backgroundColor: '#0b1120', borderRadius: 16, padding: 20, marginBottom: 16, borderWidth: 1, borderColor: '#1e3a5f30', position: 'relative' },
-  planCardFree: { borderColor: '#64748b50' },
-  planCardPro: { borderColor: '#10b981', borderWidth: 2 },
-  planBadge: { position: 'absolute', top: -10, right: 16, backgroundColor: '#64748b', paddingHorizontal: 12, paddingVertical: 4, borderRadius: 12 },
-  planBadgePro: { backgroundColor: '#10b981' },
-  planBadgeText: { color: '#fff', fontSize: 11, fontWeight: '600' },
-  planName: { color: '#fff', fontSize: 18, fontWeight: 'bold', marginBottom: 8 },
-  planPrice: { color: '#fff', fontSize: 28, fontWeight: 'bold', marginBottom: 16 },
-  planPeriod: { fontSize: 14, color: '#64748b', fontWeight: 'normal' },
-  planFeatures: { marginBottom: 16 },
-  planFeature: { color: '#94a3b8', fontSize: 13, marginBottom: 8 },
-  planButton: { backgroundColor: '#10b981', borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
-  planButtonOutline: { backgroundColor: 'transparent', borderWidth: 1, borderColor: '#10b981' },
-  planButtonText: { color: '#fff', fontSize: 15, fontWeight: '600' },
-  planButtonTextOutline: { color: '#10b981' },
+  
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 24, paddingTop: isWeb ? 20 : 50, paddingBottom: 10, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#e2e8f0' },
+  logoContainer: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  logoText: { fontSize: 22, fontWeight: 'bold', color: '#166534' },
+
+  monthsNav: { backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#e2e8f0' },
+  monthsNavContent: { paddingHorizontal: 16, paddingVertical: 12, gap: 8 },
+  monthTab: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, backgroundColor: '#f1f5f9' },
+  monthTabActive: { backgroundColor: '#166534' },
+  monthTabText: { fontSize: 13, color: '#64748b', fontWeight: '500' },
+  monthTabTextActive: { color: '#fff' },
+
+  mainGrid: { flexDirection: 'row', flexWrap: 'wrap', padding: 16, gap: 16 },
+  card: { backgroundColor: '#fff', borderRadius: 12, overflow: 'hidden', width: isWeb ? 'calc(33.333% - 12px)' : '100%', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 },
+  cardWide: { width: isWeb ? 'calc(66.666% - 8px)' : '100%' },
+  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12 },
+  cardHeaderText: { color: '#fff', fontSize: 14, fontWeight: '600' },
+  addBtn: { width: 28, height: 28, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center' },
+  cardBody: { padding: 16 },
+
+  tableHeader: { flexDirection: 'row', paddingBottom: 8, borderBottomWidth: 1, borderBottomColor: '#e2e8f0', marginBottom: 8 },
+  tableHeaderText: { fontSize: 10, fontWeight: '600', color: '#94a3b8', textTransform: 'uppercase' },
+  tableRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' },
+  tableCell: { fontSize: 13, color: '#334155' },
+
+  totalRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#e2e8f0' },
+  totalLabel: { fontSize: 13, fontWeight: '600', color: '#64748b' },
+  totalValue: { fontSize: 15, fontWeight: 'bold', color: '#10b981' },
+
+  emptyText: { color: '#94a3b8', fontSize: 13, textAlign: 'center', paddingVertical: 20 },
+
+  donutCenter: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, justifyContent: 'center', alignItems: 'center' },
+  donutLabel: { fontSize: 11, color: '#64748b' },
+  donutValue: { fontSize: 20, fontWeight: 'bold' },
+
+  summaryRow: { flexDirection: 'row', justifyContent: 'space-around', width: '100%', marginTop: 16 },
+  summaryItem: { alignItems: 'center' },
+  summaryLabel: { fontSize: 11, color: '#64748b', marginBottom: 4 },
+  summaryValue: { fontSize: 16, fontWeight: 'bold' },
+  summaryPercent: { fontSize: 11, color: '#10b981', marginTop: 2 },
+
+  metaItem: { marginBottom: 16 },
+  metaName: { fontSize: 13, color: '#334155', marginBottom: 6 },
+  metaBarBg: { height: 8, backgroundColor: '#e2e8f0', borderRadius: 4, overflow: 'hidden' },
+  metaBar: { height: 8, borderRadius: 4 },
+  metaPercent: { fontSize: 12, color: '#64748b', marginTop: 4, textAlign: 'right' },
+
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 20 },
+  modalContent: { backgroundColor: '#fff', borderRadius: 16, padding: 24, maxHeight: '80%' },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
+  modalTitle: { fontSize: 18, fontWeight: 'bold', color: '#1e293b' },
+  inputLabel: { fontSize: 13, fontWeight: '500', color: '#64748b', marginBottom: 6, marginTop: 12 },
+  input: { backgroundColor: '#f8fafc', borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 8, padding: 12, fontSize: 15, color: '#1e293b' },
+  saveBtn: { backgroundColor: '#166534', borderRadius: 8, padding: 14, alignItems: 'center', marginTop: 20 },
+  saveBtnText: { color: '#fff', fontSize: 15, fontWeight: '600' },
 });
