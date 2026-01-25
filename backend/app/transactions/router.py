@@ -123,3 +123,65 @@ def delete_transaction(
     db.delete(transaction)
     db.commit()
     return {"message": "Transação excluída com sucesso"}
+
+@router.post("/seed")
+def seed_transactions(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Popula dados de teste para o usuário"""
+    from datetime import datetime, timedelta
+    import random
+    
+    categorias_despesa = ['Alimentação', 'Transporte', 'Moradia', 'Lazer', 'Saúde', 'Educação']
+    descricoes_despesa = {
+        'Alimentação': ['Supermercado', 'Restaurante', 'iFood', 'Padaria', 'Açougue'],
+        'Transporte': ['Uber', 'Gasolina', 'Estacionamento', 'Manutenção carro', '99'],
+        'Moradia': ['Aluguel', 'Condomínio', 'Luz', 'Água', 'Internet'],
+        'Lazer': ['Netflix', 'Cinema', 'Spotify', 'Bar', 'Viagem'],
+        'Saúde': ['Farmácia', 'Consulta médica', 'Academia', 'Plano de saúde'],
+        'Educação': ['Curso online', 'Livros', 'Udemy', 'Mensalidade'],
+    }
+    
+    descricoes_receita = ['Salário', 'Freelance', 'Investimentos', 'Venda', 'Cashback', 'Bônus']
+    
+    hoje = date.today()
+    transacoes_criadas = []
+    
+    for i in range(90):
+        data_trans = hoje - timedelta(days=i)
+        
+        num_despesas = random.randint(0, 3)
+        for _ in range(num_despesas):
+            categoria = random.choice(categorias_despesa)
+            descricao = random.choice(descricoes_despesa[categoria])
+            valor = round(random.uniform(15, 500), 2)
+            
+            t = TransactionDB(
+                user_id=current_user.id,
+                tipo='despesa',
+                valor=valor,
+                categoria=categoria,
+                descricao=descricao,
+                data=data_trans
+            )
+            db.add(t)
+            transacoes_criadas.append(t)
+        
+        if i % 7 == 0:
+            descricao = random.choice(descricoes_receita)
+            valor = round(random.uniform(500, 5000), 2)
+            
+            t = TransactionDB(
+                user_id=current_user.id,
+                tipo='receita',
+                valor=valor,
+                categoria='Geral',
+                descricao=descricao,
+                data=data_trans
+            )
+            db.add(t)
+            transacoes_criadas.append(t)
+    
+    db.commit()
+    return {"message": f"{len(transacoes_criadas)} transações criadas com sucesso!"}
