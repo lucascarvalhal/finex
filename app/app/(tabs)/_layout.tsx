@@ -1,10 +1,19 @@
 import { Tabs } from 'expo-router';
-import { View, Text, TouchableOpacity, StyleSheet, Platform, Dimensions } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Platform, Dimensions, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { usePathname, router } from 'expo-router';
 
 const screenWidth = Dimensions.get('window').width;
 const isWeb = Platform.OS === 'web' && screenWidth > 768;
+
+// Ícones personalizados
+const icons = {
+  wallet: require('../../assets/icons/Wallet_64.png'),
+  barChart: require('../../assets/icons/Bar_Chart_64.png'),
+  coin: require('../../assets/icons/Coin_64.png'),
+  calculator: require('../../assets/icons/Calculator_64.png'),
+  report: require('../../assets/icons/Financial_Report_64.png'),
+};
 
 function Sidebar() {
   const pathname = usePathname();
@@ -12,7 +21,7 @@ function Sidebar() {
   const menuItems = [
     { name: 'index', label: 'Dashboard', icon: 'grid-outline', iconActive: 'grid' },
     { name: 'transacoes', label: 'Transações', icon: 'swap-horizontal-outline', iconActive: 'swap-horizontal' },
-    { name: 'assessor', label: 'Assessor IA', icon: 'sparkles-outline', iconActive: 'sparkles' },
+    { name: 'assessor', label: 'Assessor IA', icon: 'chatbubble-ellipses-outline', iconActive: 'chatbubble-ellipses' },
     { name: 'integracoes', label: 'Integrações', icon: 'apps-outline', iconActive: 'apps' },
     { name: 'perfil', label: 'Perfil', icon: 'person-outline', iconActive: 'person' },
   ];
@@ -26,9 +35,7 @@ function Sidebar() {
     <View style={styles.sidebar}>
       {/* Logo */}
       <View style={styles.logoContainer}>
-        <View style={styles.logoIcon}>
-          <Ionicons name="wallet" size={24} color="#166534" />
-        </View>
+        <Image source={icons.wallet} style={styles.logoIcon} />
         <Text style={styles.logoText}>Finex</Text>
       </View>
 
@@ -96,14 +103,9 @@ export default function TabsLayout() {
           borderTopWidth: 1,
           height: 60,
           paddingBottom: 8,
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: -2 },
-          shadowOpacity: 0.05,
-          shadowRadius: 4,
-          elevation: 8,
         },
         tabBarActiveTintColor: '#166534',
-        tabBarInactiveTintColor: '#94a3b8',
+        tabBarInactiveTintColor: '#64748b',
         headerStyle: { backgroundColor: '#fff' },
         headerTintColor: '#1e293b',
         headerShown: false,
@@ -127,7 +129,7 @@ export default function TabsLayout() {
         name="assessor"
         options={{
           title: 'Assessor',
-          tabBarIcon: ({ color, size }) => <Ionicons name="sparkles-outline" size={size} color={color} />,
+          tabBarIcon: ({ color, size }) => <Ionicons name="chatbubble-ellipses-outline" size={size} color={color} />,
         }}
       />
       <Tabs.Screen
@@ -155,7 +157,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#f8fafc',
   },
   sidebar: {
-    width: 260,
+    width: 240,
     backgroundColor: '#fff',
     borderRightWidth: 1,
     borderRightColor: '#e2e8f0',
@@ -169,16 +171,12 @@ const styles = StyleSheet.create({
     paddingLeft: 8,
   },
   logoIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    backgroundColor: '#dcfce7',
-    justifyContent: 'center',
-    alignItems: 'center',
+    width: 40,
+    height: 40,
     marginRight: 12,
   },
   logoText: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: 'bold',
     color: '#166534',
   },
@@ -193,7 +191,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   menuItemActive: {
-    backgroundColor: '#dcfce7',
+    backgroundColor: '#f0fdf4',
   },
   menuLabel: {
     marginLeft: 14,
@@ -203,7 +201,6 @@ const styles = StyleSheet.create({
   },
   menuLabelActive: {
     color: '#166534',
-    fontWeight: '600',
   },
   premiumCard: {
     backgroundColor: '#f0fdf4',
@@ -220,14 +217,13 @@ const styles = StyleSheet.create({
   },
   premiumText: {
     color: '#64748b',
-    fontSize: 13,
+    fontSize: 12,
     marginBottom: 14,
-    lineHeight: 18,
   },
   premiumBtn: {
     backgroundColor: '#166534',
     borderRadius: 10,
-    paddingVertical: 12,
+    paddingVertical: 10,
     alignItems: 'center',
   },
   premiumBtnText: {

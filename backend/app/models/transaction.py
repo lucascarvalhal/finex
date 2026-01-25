@@ -13,6 +13,7 @@ class TransactionBase(BaseModel):
     categoria: str
     descricao: Optional[str] = None
     data: date
+    moeda: Optional[str] = "BRL"
 
 class TransactionCreate(TransactionBase):
     pass
@@ -23,6 +24,7 @@ class TransactionUpdate(BaseModel):
     categoria: Optional[str] = None
     descricao: Optional[str] = None
     data: Optional[date] = None
+    moeda: Optional[str] = None
 
 class Transaction(TransactionBase):
     id: int

@@ -16,5 +16,6 @@ class ContaFixaDB(Base):
     ano_referencia = Column(Integer, nullable=False)
     parcela_atual = Column(Integer, default=1)
     parcela_total = Column(Integer, default=1)
+    moeda = Column(String, default="BRL", nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())

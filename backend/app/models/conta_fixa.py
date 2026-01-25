@@ -9,6 +9,7 @@ class ContaFixaBase(BaseModel):
     categoria: Optional[str] = "Geral"
     parcela_atual: Optional[int] = 1
     parcela_total: Optional[int] = 1
+    moeda: Optional[str] = "BRL"
 
 class ContaFixaCreate(ContaFixaBase):
     mes_referencia: int
@@ -22,6 +23,7 @@ class ContaFixaUpdate(BaseModel):
     pago: Optional[bool] = None
     parcela_atual: Optional[int] = None
     parcela_total: Optional[int] = None
+    moeda: Optional[str] = None
 
 class ContaFixa(ContaFixaBase):
     id: int

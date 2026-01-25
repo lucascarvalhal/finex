@@ -13,5 +13,6 @@ class InvestimentoDB(Base):
     valor_atual = Column(Float, nullable=False)
     quantidade = Column(Float, default=1)
     ticker = Column(String, nullable=True)  # PETR4, VALE3, etc
+    moeda = Column(String, default="BRL", nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())

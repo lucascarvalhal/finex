@@ -9,6 +9,7 @@ class InvestimentoBase(BaseModel):
     valor_atual: float
     quantidade: Optional[float] = 1
     ticker: Optional[str] = None
+    moeda: Optional[str] = "BRL"
 
 class InvestimentoCreate(InvestimentoBase):
     pass
@@ -20,6 +21,7 @@ class InvestimentoUpdate(BaseModel):
     valor_atual: Optional[float] = None
     quantidade: Optional[float] = None
     ticker: Optional[str] = None
+    moeda: Optional[str] = None
 
 class Investimento(InvestimentoBase):
     id: int

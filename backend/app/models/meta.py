@@ -8,6 +8,7 @@ class MetaBase(BaseModel):
     categoria: Optional[str] = "Geral"
     cor: Optional[str] = "#10b981"
     data_limite: Optional[date] = None
+    moeda: Optional[str] = "BRL"
 
 class MetaCreate(MetaBase):
     pass
@@ -19,6 +20,7 @@ class MetaUpdate(BaseModel):
     categoria: Optional[str] = None
     cor: Optional[str] = None
     data_limite: Optional[date] = None
+    moeda: Optional[str] = None
 
 class Meta(MetaBase):
     id: int
