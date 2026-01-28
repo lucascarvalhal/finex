@@ -74,8 +74,8 @@ async def chat(
         financial_context = get_user_financial_context(db, current_user.id)
         
         # Prompt do sistema
-        system_prompt = f"""Você é o assistente financeiro do Finex, um aplicativo de gestão de finanças pessoais.
-Seu nome é Finex AI. Seja amigável, prestativo e dê conselhos práticos sobre finanças.
+        system_prompt = f"""Você é o assistente financeiro do Nexfy, um aplicativo de gestão de finanças pessoais.
+Seu nome é Nexfy AI. Seja amigável, prestativo e dê conselhos práticos sobre finanças.
 
 Você tem acesso aos dados financeiros do usuário:
 {financial_context}

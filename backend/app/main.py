@@ -21,7 +21,7 @@ from app.models.investimento_db import InvestimentoDB
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
-    title="Finex API",
+    title="Nexfy API",
     description="API do sistema de gestão financeira",
     version="0.2.0"
 )
@@ -45,7 +45,7 @@ app.include_router(investimentos_router)
 
 @app.get("/")
 def root():
-    return {"message": "Finex API funcionando!"}
+    return {"message": "Nexfy API funcionando!"}
 
 @app.get("/health")
 def health():

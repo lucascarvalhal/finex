@@ -1,4 +1,4 @@
-# Finex
+# Nexfy
 
 Sistema de gestão financeira pessoal e empresarial com IA.
 
@@ -27,7 +27,7 @@ npx expo start --web
 
 ## Estrutura
 ```
-finex/
+nexfy/
 ├── app/          # Frontend Expo
 ├── backend/      # API FastAPI
 └── README.md

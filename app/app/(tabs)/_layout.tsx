@@ -1,19 +1,10 @@
 import { Tabs } from 'expo-router';
-import { View, Text, TouchableOpacity, StyleSheet, Platform, Dimensions, Image } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Platform, Dimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { usePathname, router } from 'expo-router';
 
 const screenWidth = Dimensions.get('window').width;
 const isWeb = Platform.OS === 'web' && screenWidth > 768;
-
-// Ícones personalizados
-const icons = {
-  wallet: require('../../assets/icons/Wallet_64.png'),
-  barChart: require('../../assets/icons/Bar_Chart_64.png'),
-  coin: require('../../assets/icons/Coin_64.png'),
-  calculator: require('../../assets/icons/Calculator_64.png'),
-  report: require('../../assets/icons/Financial_Report_64.png'),
-};
 
 function Sidebar() {
   const pathname = usePathname();
@@ -22,7 +13,6 @@ function Sidebar() {
     { name: 'index', label: 'Dashboard', icon: 'grid-outline', iconActive: 'grid' },
     { name: 'transacoes', label: 'Transações', icon: 'swap-horizontal-outline', iconActive: 'swap-horizontal' },
     { name: 'assessor', label: 'Assessor IA', icon: 'chatbubble-ellipses-outline', iconActive: 'chatbubble-ellipses' },
-    { name: 'integracoes', label: 'Integrações', icon: 'apps-outline', iconActive: 'apps' },
     { name: 'perfil', label: 'Perfil', icon: 'person-outline', iconActive: 'person' },
   ];
 
@@ -35,8 +25,10 @@ function Sidebar() {
     <View style={styles.sidebar}>
       {/* Logo */}
       <View style={styles.logoContainer}>
-        <Image source={icons.wallet} style={styles.logoIcon} />
-        <Text style={styles.logoText}>Finex</Text>
+        <View style={styles.logoIcon}>
+          <Ionicons name="wallet" size={24} color="#10b981" />
+        </View>
+        <Text style={styles.logoText}>Nexfy</Text>
       </View>
 
       {/* Menu */}
@@ -50,7 +42,7 @@ function Sidebar() {
             <Ionicons
               name={isActive(item.name) ? item.iconActive as any : item.icon as any}
               size={20}
-              color={isActive(item.name) ? '#166534' : '#64748b'}
+              color={isActive(item.name) ? '#10b981' : '#64748b'}
             />
             <Text style={[styles.menuLabel, isActive(item.name) && styles.menuLabelActive]}>
               {item.label}
@@ -61,7 +53,7 @@ function Sidebar() {
 
       {/* Premium Card */}
       <View style={styles.premiumCard}>
-        <Text style={styles.premiumTitle}>Finex Pro</Text>
+        <Text style={styles.premiumTitle}>Nexfy Pro</Text>
         <Text style={styles.premiumText}>Desbloqueie recursos avançados</Text>
         <TouchableOpacity style={styles.premiumBtn}>
           <Text style={styles.premiumBtnText}>Upgrade</Text>
@@ -86,7 +78,6 @@ export default function TabsLayout() {
             <Tabs.Screen name="index" />
             <Tabs.Screen name="transacoes" />
             <Tabs.Screen name="assessor" />
-            <Tabs.Screen name="integracoes" />
             <Tabs.Screen name="perfil" />
           </Tabs>
         </View>
@@ -98,16 +89,16 @@ export default function TabsLayout() {
     <Tabs
       screenOptions={{
         tabBarStyle: {
-          backgroundColor: '#fff',
-          borderTopColor: '#e2e8f0',
+          backgroundColor: '#0a0f1a',
+          borderTopColor: '#1e293b',
           borderTopWidth: 1,
           height: 60,
           paddingBottom: 8,
         },
-        tabBarActiveTintColor: '#166534',
+        tabBarActiveTintColor: '#10b981',
         tabBarInactiveTintColor: '#64748b',
-        headerStyle: { backgroundColor: '#fff' },
-        headerTintColor: '#1e293b',
+        headerStyle: { backgroundColor: '#0a0f1a' },
+        headerTintColor: '#fff',
         headerShown: false,
       }}
     >
@@ -133,13 +124,6 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="integracoes"
-        options={{
-          title: 'Integrações',
-          tabBarIcon: ({ color, size }) => <Ionicons name="apps-outline" size={size} color={color} />,
-        }}
-      />
-      <Tabs.Screen
         name="perfil"
         options={{
           title: 'Perfil',
@@ -154,13 +138,13 @@ const styles = StyleSheet.create({
   webContainer: {
     flex: 1,
     flexDirection: 'row',
-    backgroundColor: '#f8fafc',
+    backgroundColor: '#060910',
   },
   sidebar: {
     width: 240,
-    backgroundColor: '#fff',
+    backgroundColor: '#0d1320',
     borderRightWidth: 1,
-    borderRightColor: '#e2e8f0',
+    borderRightColor: '#1e293b',
     padding: 20,
     justifyContent: 'space-between',
   },
@@ -173,12 +157,16 @@ const styles = StyleSheet.create({
   logoIcon: {
     width: 40,
     height: 40,
+    borderRadius: 12,
+    backgroundColor: '#10b98120',
+    justifyContent: 'center',
+    alignItems: 'center',
     marginRight: 12,
   },
   logoText: {
     fontSize: 22,
     fontWeight: 'bold',
-    color: '#166534',
+    color: '#fff',
   },
   menu: {
     flex: 1,
@@ -191,7 +179,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   menuItemActive: {
-    backgroundColor: '#f0fdf4',
+    backgroundColor: '#10b98115',
   },
   menuLabel: {
     marginLeft: 14,
@@ -200,17 +188,17 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   menuLabelActive: {
-    color: '#166534',
+    color: '#10b981',
   },
   premiumCard: {
-    backgroundColor: '#f0fdf4',
+    backgroundColor: '#10b98115',
     borderRadius: 16,
     padding: 20,
     borderWidth: 1,
-    borderColor: '#bbf7d0',
+    borderColor: '#10b98130',
   },
   premiumTitle: {
-    color: '#166534',
+    color: '#10b981',
     fontSize: 16,
     fontWeight: 'bold',
     marginBottom: 6,
@@ -221,7 +209,7 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
   premiumBtn: {
-    backgroundColor: '#166534',
+    backgroundColor: '#10b981',
     borderRadius: 10,
     paddingVertical: 10,
     alignItems: 'center',
@@ -233,6 +221,6 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    backgroundColor: '#f8fafc',
+    backgroundColor: '#060910',
   },
 });
