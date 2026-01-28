@@ -1,7 +1,7 @@
-# 📊 Finex - Diário de Desenvolvimento
+# 📊 Nexfy - Diário de Desenvolvimento
 
 ## Visão Geral do Projeto
-**Finex** é um aplicativo de gestão financeira pessoal com:
+**Nexfy** é um aplicativo de gestão financeira pessoal com:
 - Dashboard web/mobile (React Native + Expo)
 - Backend API (FastAPI + PostgreSQL)
 - Assistente IA financeiro (Gemini)
@@ -76,7 +76,7 @@
 
 ## 🏗️ Arquitetura Atual
 ```
-finex/
+nexfy/
 ├── backend/                 # API FastAPI
 │   ├── app/
 │   │   ├── auth/           # Autenticação JWT
@@ -113,7 +113,7 @@ finex/
 
 ### Backend
 ```bash
-cd ~/pessoal/finex/backend
+cd ~/pessoal/nexfy/backend
 source venv/bin/activate
 sudo service postgresql start
 uvicorn app.main:app --reload
@@ -121,13 +121,13 @@ uvicorn app.main:app --reload
 
 ### Frontend
 ```bash
-cd ~/pessoal/finex/app
+cd ~/pessoal/nexfy/app
 npx expo start --web
 ```
 
 ### WhatsApp (Docker)
 ```bash
-cd ~/pessoal/finex/whatsapp
+cd ~/pessoal/nexfy/whatsapp
 docker-compose up -d
 ```
 
@@ -176,7 +176,7 @@ docker-compose up -d
 - **Gemini:** Configurada em `whatsapp/.env`
 
 ### Portas
-- Backend Finex: `http://localhost:8000`
+- Backend Nexfy: `http://localhost:8000`
 - Frontend Expo: `http://localhost:8081`
 - Evolution API: `http://localhost:8085`
 - Webhook: `http://localhost:5001`

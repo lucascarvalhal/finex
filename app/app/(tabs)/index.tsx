@@ -1158,7 +1158,7 @@ export default function DashboardScreen() {
         <View style={styles.header}>
           <View style={styles.logoContainer}>
             <Image source={icons.wallet} style={styles.logoIcon} />
-            <Text style={styles.logoText}>Finex</Text>
+            <Text style={styles.logoText}>Nexfy</Text>
           </View>
         </View>
 

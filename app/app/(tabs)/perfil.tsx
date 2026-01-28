@@ -218,7 +218,7 @@ export default function PerfilScreen() {
         <Text style={styles.logoutText}>Sair da conta</Text>
       </TouchableOpacity>
 
-      <Text style={styles.version}>Finex v1.0.0</Text>
+      <Text style={styles.version}>Nexfy v1.0.0</Text>
     </ScrollView>
   );
 }

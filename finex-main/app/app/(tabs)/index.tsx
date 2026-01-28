@@ -675,7 +675,7 @@ export default function DashboardScreen() {
         <View style={styles.header}>
           <View style={styles.logoContainer}>
             <Ionicons name="wallet-outline" size={24} color="#166534" />
-            <Text style={styles.logoText}>Finex</Text>
+            <Text style={styles.logoText}>Nexfy</Text>
           </View>
         </View>
 

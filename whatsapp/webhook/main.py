@@ -7,13 +7,13 @@ from datetime import datetime
 import base64
 import tempfile
 
-app = FastAPI(title="Finex WhatsApp Webhook")
+app = FastAPI(title="Nexfy WhatsApp Webhook")
 
 # Configurações
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-FINEX_API_URL = os.getenv("FINEX_API_URL", "http://host.docker.internal:8000")
+NEXFY_API_URL = os.getenv("NEXFY_API_URL", "http://host.docker.internal:8000")
 EVOLUTION_API_URL = os.getenv("EVOLUTION_API_URL", "http://evolution-api:8080")
-EVOLUTION_API_KEY = os.getenv("EVOLUTION_API_KEY", "finex_secret_key_123")
+EVOLUTION_API_KEY = os.getenv("EVOLUTION_API_KEY", "nexfy_secret_key_123")
 
 # Configurar Gemini
 genai.configure(api_key=GEMINI_API_KEY)
@@ -23,7 +23,7 @@ model = genai.GenerativeModel('gemini-1.5-flash')
 USER_TOKENS = {}
 
 SYSTEM_PROMPT = """
-Você é um assistente financeiro do app Finex. Analise a mensagem do usuário e extraia as informações financeiras.
+Você é um assistente financeiro do app Nexfy. Analise a mensagem do usuário e extraia as informações financeiras.
 
 Responda SEMPRE em JSON válido com a seguinte estrutura:
 {
@@ -122,7 +122,7 @@ async def register_user(phone: str, email: str, password: str) -> bool:
         try:
             # Tentar login
             response = await client.post(
-                f"{FINEX_API_URL}/auth/login",
+                f"{NEXFY_API_URL}/auth/login",
                 data={"username": email, "password": password}
             )
             if response.status_code == 200:
@@ -134,11 +134,11 @@ async def register_user(phone: str, email: str, password: str) -> bool:
     return False
 
 async def create_transaction(token: str, tipo: str, valor: float, categoria: str, descricao: str) -> bool:
-    """Cria transação no Finex"""
+    """Cria transação no Nexfy"""
     async with httpx.AsyncClient() as client:
         try:
             response = await client.post(
-                f"{FINEX_API_URL}/transactions/",
+                f"{NEXFY_API_URL}/transactions/",
                 headers={"Authorization": f"Bearer {token}"},
                 json={
                     "tipo": tipo,
@@ -158,7 +158,7 @@ async def get_summary(token: str) -> dict:
     async with httpx.AsyncClient() as client:
         try:
             response = await client.get(
-                f"{FINEX_API_URL}/transactions/summary",
+                f"{NEXFY_API_URL}/transactions/summary",
                 headers={"Authorization": f"Bearer {token}"}
             )
             if response.status_code == 200:
@@ -169,7 +169,7 @@ async def get_summary(token: str) -> dict:
 
 @app.get("/")
 async def root():
-    return {"status": "Finex WhatsApp Webhook ativo!"}
+    return {"status": "Nexfy WhatsApp Webhook ativo!"}
 
 @app.post("/webhook")
 async def webhook(request: Request):
@@ -241,7 +241,7 @@ async def webhook(request: Request):
         if not token:
             await send_whatsapp_message(
                 instance, phone,
-                "👋 Olá! Sou o assistente do Finex.\n\nPara começar, faça login:\n/login seu@email.com suasenha"
+                "👋 Olá! Sou o assistente do Nexfy.\n\nPara começar, faça login:\n/login seu@email.com suasenha"
             )
             return {"status": "ok"}
         

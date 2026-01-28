@@ -4,7 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 
 const API_URL = 'http://localhost:8000';
-const FINEX_WHATSAPP = '5511999990000'; // Número do Finex (ajustar depois)
+const NEXFY_WHATSAPP = '5511999990000'; // Número do Nexfy (ajustar depois)
 
 // Alert multiplataforma
 const showAlert = (title: string, message: string, buttons: { text: string; style?: string; onPress?: () => void }[]) => {
@@ -90,7 +90,7 @@ export default function IntegracoesScreen() {
 
   const openWhatsApp = () => {
     const message = encodeURIComponent('Olá! Quero começar a registrar minhas transações pelo WhatsApp.');
-    const url = `https://wa.me/${FINEX_WHATSAPP}?text=${message}`;
+    const url = `https://wa.me/${NEXFY_WHATSAPP}?text=${message}`;
     
     if (Platform.OS === 'web') {
       window.open(url, '_blank');
@@ -104,7 +104,7 @@ export default function IntegracoesScreen() {
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Integrações</Text>
-        <Text style={styles.headerSubtitle}>Conecte serviços externos ao Finex</Text>
+        <Text style={styles.headerSubtitle}>Conecte serviços externos ao Nexfy</Text>
       </View>
 
       {/* WhatsApp Integration Card */}
@@ -205,11 +205,11 @@ export default function IntegracoesScreen() {
               <Text style={styles.stepNumberText}>2</Text>
             </View>
             <View style={styles.stepContent}>
-              <Text style={styles.stepTitle}>Salve o número do Finex</Text>
+              <Text style={styles.stepTitle}>Salve o número do Nexfy</Text>
               <Text style={styles.stepDesc}>Adicione nosso número aos seus contatos:</Text>
-              <View style={styles.finexNumber}>
+              <View style={styles.nexfyNumber}>
                 <Ionicons name="call" size={18} color="#166534" />
-                <Text style={styles.finexNumberText}>+55 11 99999-0000</Text>
+                <Text style={styles.nexfyNumberText}>+55 11 99999-0000</Text>
                 <TouchableOpacity style={styles.copyBtn}>
                   <Ionicons name="copy-outline" size={16} color="#64748b" />
                 </TouchableOpacity>
@@ -415,7 +415,7 @@ const styles = StyleSheet.create({
   phoneDisplayText: { color: '#1e293b', fontSize: 14, fontWeight: '500' },
   editLink: { color: '#166534', fontSize: 13, fontWeight: '600' },
 
-  finexNumber: { 
+  nexfyNumber: { 
     flexDirection: 'row', 
     alignItems: 'center', 
     backgroundColor: '#f0fdf4',
@@ -425,7 +425,7 @@ const styles = StyleSheet.create({
     gap: 10,
     alignSelf: 'flex-start'
   },
-  finexNumberText: { color: '#166534', fontSize: 15, fontWeight: '600' },
+  nexfyNumberText: { color: '#166534', fontSize: 15, fontWeight: '600' },
   copyBtn: { padding: 4 },
 
   whatsappBtn: {
