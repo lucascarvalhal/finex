@@ -1,59 +1,23 @@
 version: '3.8'
 
 services:
-  evolution-api:
-    image: atendai/evolution-api:latest
-    container_name: evolution-api
+  wppconnect:
+    image: wppconnect/server-cli:latest
+    container_name: wppconnect
     restart: always
     ports:
-      - "8085:8080"
+      - "8085:21465"
     environment:
-      - AUTHENTICATION_API_KEY=finex_secret_key_123
-      - DATABASE_PROVIDER=postgresql
-      - DATABASE_CONNECTION_URI=postgresql://postgres:postgres@postgres:5432/evolution
-      - DATABASE_CONNECTION_CLIENT_NAME=evolution
-      - WEBHOOK_GLOBAL_URL=http://webhook:5000/webhook
-      - WEBHOOK_GLOBAL_ENABLED=true
-      - WEBHOOK_EVENTS_MESSAGES_UPSERT=true
-      - LOG_LEVEL=DEBUG
+      - SECRET_KEY=THISISMYSECURETOKEN
+      - WPPCONNECT_OPTIONS={"autoClose":120000,"waitForLogin":true}
     volumes:
-      - evolution_data:/evolution/instances
+      - wppconnect_data:/home/tokens
     networks:
-      - finex-network
-    depends_on:
-      - postgres
-
-  postgres:
-    image: postgres:15-alpine
-    container_name: evolution-postgres
-    restart: always
-    environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
-      - POSTGRES_DB=evolution
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    networks:
-      - finex-network
-
-  webhook:
-    build: ./webhook
-    container_name: finex-webhook
-    restart: always
-    ports:
-      - "5001:5000"
-    environment:
-      - GEMINI_API_KEY=${GEMINI_API_KEY}
-      - FINEX_API_URL=http://host.docker.internal:8000
-      - EVOLUTION_API_URL=http://evolution-api:8080
-      - EVOLUTION_API_KEY=finex_secret_key_123
-    networks:
-      - finex-network
+      - nexfy-network
 
 volumes:
-  evolution_data:
-  postgres_data:
+  wppconnect_data:
 
 networks:
-  finex-network:
+  nexfy-network:
     driver: bridge

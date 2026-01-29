@@ -185,3 +185,20 @@ def seed_transactions(
     
     db.commit()
     return {"message": f"{len(transacoes_criadas)} transações criadas com sucesso!"}
+
+@router.post("/seed-multi")
+def seed_multi_currency(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Popula dados de teste com múltiplas moedas (BRL, USD, EUR)"""
+    from app.transactions.seed import seed_transactions
+    
+    # Limpa transações antigas do usuário
+    db.query(TransactionDB).filter(TransactionDB.user_id == current_user.id).delete()
+    db.commit()
+    
+    # Cria novas transações
+    count = seed_transactions(db, current_user.id)
+    
+    return {"message": f"{count} transações criadas com sucesso! (BRL, USD, EUR)"}
