@@ -1,22 +1,22 @@
 version: '3.8'
 
 services:
-  wppconnect:
-    image: wppconnect/server-cli:latest
-    container_name: wppconnect
+  nexfy-webhook:
+    build:
+      context: ./webhook
+      dockerfile: Dockerfile
+    container_name: nexfy-webhook
     restart: always
     ports:
-      - "8085:21465"
+      - "5001:5000"
+    env_file:
+      - .env
     environment:
-      - SECRET_KEY=THISISMYSECURETOKEN
-      - WPPCONNECT_OPTIONS={"autoClose":120000,"waitForLogin":true}
-    volumes:
-      - wppconnect_data:/home/tokens
+      - NEXFY_API_URL=http://host.docker.internal:8000
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     networks:
       - nexfy-network
-
-volumes:
-  wppconnect_data:
 
 networks:
   nexfy-network:
