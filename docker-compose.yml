@@ -3,15 +3,38 @@ version: '3.8'
 services:
   db:
     image: postgres:16-alpine
-    container_name: finex-db
+    container_name: nexfy-db
     environment:
-      POSTGRES_USER: finex
-      POSTGRES_PASSWORD: finex123
-      POSTGRES_DB: finex
+      POSTGRES_USER: nexfy
+      POSTGRES_PASSWORD: nexfy123
+      POSTGRES_DB: nexfy
     ports:
-      - "5432:5432"
+      - "5433:5432"  # 5433 externo para evitar conflito com PostgreSQL local
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nexfy -d nexfy"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: nexfy-backend
+    environment:
+      DATABASE_URL: postgresql://nexfy:nexfy123@db:5432/nexfy
+      JWT_SECRET: ${JWT_SECRET:-sua-chave-secreta-mude-em-producao}
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
 
 volumes:
   postgres_data:

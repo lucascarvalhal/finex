@@ -1,50 +1,53 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, RefreshControl, Dimensions, TouchableOpacity, TextInput, Platform, Modal, Image } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, RefreshControl, Dimensions, TouchableOpacity, Platform, Modal } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import Svg, { Circle, G, Rect, Line, Path, Text as SvgText } from 'react-native-svg';
+import Svg, { Path, Defs, LinearGradient, Stop, Circle, Line, Text as SvgText, G, Rect } from 'react-native-svg';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../contexts/ThemeContext';
 
-// Ícones personalizados
-const icons = {
-  wallet: require('../../assets/icons/Wallet_64.png'),
-  banknotes: require('../../assets/icons/Banknotes_64.png'),
-  creditCard: require('../../assets/icons/Credit_Card_64.png'),
-  coinBag: require('../../assets/icons/Coin_Bag_64.png'),
-  barChart: require('../../assets/icons/Bar_Chart_64.png'),
-  target: require('../../assets/icons/Financial_Target_64.png'),
-  bank: require('../../assets/icons/Bank_64.png'),
-  coin: require('../../assets/icons/Coin_64.png'),
-  calculator: require('../../assets/icons/Calculator_64.png'),
-  report: require('../../assets/icons/Financial_Report_64.png'),
-};
-
-// Categorias pré-definidas
-const CATEGORIAS_PADRAO = [
-  'Alimentação',
-  'Transporte',
-  'Saúde',
-  'Educação',
-  'Lazer',
-  'Moradia',
-  'Vestuário',
-  'Serviços',
-  'Assinaturas',
-  'Outros',
-];
-
-// Moedas mais utilizadas no mundo
-const MOEDAS = [
-  { codigo: 'BRL', simbolo: 'R$', nome: 'Real Brasileiro', locale: 'pt-BR', decimais: 2 },
-  { codigo: 'USD', simbolo: '$', nome: 'Dólar Americano', locale: 'en-US', decimais: 2 },
-  { codigo: 'EUR', simbolo: '€', nome: 'Euro', locale: 'de-DE', decimais: 2 },
-  { codigo: 'GBP', simbolo: '£', nome: 'Libra Esterlina', locale: 'en-GB', decimais: 2 },
-  { codigo: 'JPY', simbolo: '¥', nome: 'Iene Japonês', locale: 'ja-JP', decimais: 0 },
-];
+// Meses em português
+const MESES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+const MESES_COMPLETOS = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+const DIAS_SEMANA = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 
 const API_URL = 'http://localhost:8000';
-const screenWidth = Dimensions.get('window').width;
+const { width: screenWidth } = Dimensions.get('window');
 const isWeb = Platform.OS === 'web';
+
+// Moedas disponíveis
+const MOEDAS = [
+  { codigo: 'BRL', simbolo: 'R$', nome: 'Real Brasileiro', locale: 'pt-BR', decimais: 2, bandeira: '🇧🇷' },
+  { codigo: 'USD', simbolo: '$', nome: 'Dólar Americano', locale: 'en-US', decimais: 2, bandeira: '🇺🇸' },
+  { codigo: 'EUR', simbolo: '€', nome: 'Euro', locale: 'de-DE', decimais: 2, bandeira: '🇪🇺' },
+  { codigo: 'GBP', simbolo: '£', nome: 'Libra Esterlina', locale: 'en-GB', decimais: 2, bandeira: '🇬🇧' },
+  { codigo: 'JPY', simbolo: '¥', nome: 'Iene Japonês', locale: 'ja-JP', decimais: 0, bandeira: '🇯🇵' },
+];
+
+// Modos de visualização de moeda
+type ModoMoeda = 'MISTO' | 'BRL' | 'USD' | 'EUR' | 'GBP' | 'JPY';
+
+const MODOS_MOEDA = [
+  { codigo: 'MISTO', nome: 'Moedas Mistas', icone: 'layers-outline' },
+  { codigo: 'BRL', nome: 'Tudo em Real', bandeira: '🇧🇷' },
+  { codigo: 'USD', nome: 'Tudo em Dólar', bandeira: '🇺🇸' },
+  { codigo: 'EUR', nome: 'Tudo em Euro', bandeira: '🇪🇺' },
+  { codigo: 'GBP', nome: 'Tudo em Libra', bandeira: '🇬🇧' },
+  { codigo: 'JPY', nome: 'Tudo em Iene', bandeira: '🇯🇵' },
+];
+
+// Categorias com cores e ícones
+const CATEGORIAS = {
+  'Alimentação': { cor: '#f97316', icon: 'restaurant' },
+  'Transporte': { cor: '#8b5cf6', icon: 'car' },
+  'Moradia': { cor: '#06b6d4', icon: 'home' },
+  'Lazer': { cor: '#ec4899', icon: 'game-controller' },
+  'Saúde': { cor: '#10b981', icon: 'medkit' },
+  'Educação': { cor: '#3b82f6', icon: 'school' },
+  'Serviços': { cor: '#f59e0b', icon: 'construct' },
+  'Assinaturas': { cor: '#a855f7', icon: 'card' },
+  'Vestuário': { cor: '#14b8a6', icon: 'shirt' },
+  'Outros': { cor: '#64748b', icon: 'ellipsis-horizontal' },
+};
 
 interface Transaction {
   id: number;
@@ -62,282 +65,511 @@ interface ContaFixa {
   valor: number;
   dia_vencimento: number;
   pago: boolean;
-  parcela_atual: number;
-  parcela_total: number;
   mes_referencia: number;
   ano_referencia: number;
   moeda?: string;
 }
 
-interface Meta {
-  id: number;
-  nome: string;
-  valor_alvo: number;
-  valor_atual: number;
-  cor: string;
-  moeda?: string;
-}
+// Componente de Gráfico de Área
+const AreaChart = ({ data, colors, width, height }: { data: number[], colors: any, width: number, height: number }) => {
+  if (!data || data.length === 0) return null;
 
-interface Investimento {
-  id: number;
-  nome: string;
-  tipo: string;
-  valor_investido: number;
-  valor_atual: number;
-  ticker: string;
-  moeda?: string;
-}
+  const maxValue = Math.max(...data, 1);
+  const padding = { top: 20, right: 20, bottom: 30, left: 50 };
+  const chartWidth = width - padding.left - padding.right;
+  const chartHeight = height - padding.top - padding.bottom;
 
-const meses = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
-const mesesCurtos = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+  const points = data.map((value, index) => ({
+    x: padding.left + (index / (data.length - 1)) * chartWidth,
+    y: padding.top + chartHeight - (value / maxValue) * chartHeight
+  }));
 
-const categoriaCores: { [key: string]: string } = {
-  'Alimentação': '#ef4444',
-  'Transporte': '#f97316',
-  'Saúde': '#10b981',
-  'Educação': '#3b82f6',
-  'Lazer': '#8b5cf6',
-  'Moradia': '#ec4899',
-  'Vestuário': '#f59e0b',
-  'Serviços': '#06b6d4',
-  'Assinaturas': '#a855f7',
-  'Outros': '#64748b',
-  'Geral': '#6366f1',
+  // Criar path para área
+  let pathD = `M ${points[0].x} ${padding.top + chartHeight}`;
+  pathD += ` L ${points[0].x} ${points[0].y}`;
+
+  for (let i = 1; i < points.length; i++) {
+    const cp1x = points[i - 1].x + (points[i].x - points[i - 1].x) / 3;
+    const cp1y = points[i - 1].y;
+    const cp2x = points[i].x - (points[i].x - points[i - 1].x) / 3;
+    const cp2y = points[i].y;
+    pathD += ` C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${points[i].x} ${points[i].y}`;
+  }
+
+  pathD += ` L ${points[points.length - 1].x} ${padding.top + chartHeight}`;
+  pathD += ' Z';
+
+  // Criar path para linha
+  let lineD = `M ${points[0].x} ${points[0].y}`;
+  for (let i = 1; i < points.length; i++) {
+    const cp1x = points[i - 1].x + (points[i].x - points[i - 1].x) / 3;
+    const cp1y = points[i - 1].y;
+    const cp2x = points[i].x - (points[i].x - points[i - 1].x) / 3;
+    const cp2y = points[i].y;
+    lineD += ` C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${points[i].x} ${points[i].y}`;
+  }
+
+  const weeks = ['1', '2', '3', '4', '5', '6', '7'];
+  const yLabels = [0, maxValue * 0.25, maxValue * 0.5, maxValue * 0.75, maxValue];
+
+  return (
+    <Svg width={width} height={height}>
+      <Defs>
+        <LinearGradient id="areaGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+          <Stop offset="0%" stopColor={colors.chartGradientStart} stopOpacity="0.4" />
+          <Stop offset="100%" stopColor={colors.chartGradientEnd} stopOpacity="0" />
+        </LinearGradient>
+      </Defs>
+
+      {/* Grid lines */}
+      {yLabels.map((_, i) => (
+        <Line
+          key={i}
+          x1={padding.left}
+          y1={padding.top + (i / 4) * chartHeight}
+          x2={width - padding.right}
+          y2={padding.top + (i / 4) * chartHeight}
+          stroke={colors.chartGrid}
+          strokeWidth="1"
+          strokeDasharray="4 4"
+        />
+      ))}
+
+      {/* Y axis labels */}
+      {yLabels.reverse().map((label, i) => (
+        <SvgText
+          key={i}
+          x={padding.left - 10}
+          y={padding.top + (i / 4) * chartHeight + 4}
+          fill={colors.textMuted}
+          fontSize="10"
+          textAnchor="end"
+        >
+          {label >= 1000 ? `${(label / 1000).toFixed(0)}K` : label.toFixed(0)}
+        </SvgText>
+      ))}
+
+      {/* X axis labels */}
+      {weeks.slice(0, data.length).map((week, i) => (
+        <SvgText
+          key={i}
+          x={padding.left + (i / (data.length - 1)) * chartWidth}
+          y={height - 10}
+          fill={colors.textMuted}
+          fontSize="10"
+          textAnchor="middle"
+        >
+          {week}
+        </SvgText>
+      ))}
+
+      {/* Area fill */}
+      <Path d={pathD} fill="url(#areaGradient)" />
+
+      {/* Line */}
+      <Path d={lineD} fill="none" stroke={colors.chartLine} strokeWidth="2.5" />
+
+      {/* Data points */}
+      {points.map((point, i) => (
+        <Circle
+          key={i}
+          cx={point.x}
+          cy={point.y}
+          r="4"
+          fill={colors.card}
+          stroke={colors.chartLine}
+          strokeWidth="2"
+        />
+      ))}
+
+      {/* Tooltip for last point */}
+      {points.length > 0 && (
+        <>
+          <Circle
+            cx={points[points.length - 1].x}
+            cy={points[points.length - 1].y}
+            r="6"
+            fill={colors.chartLine}
+          />
+        </>
+      )}
+    </Svg>
+  );
 };
 
-// Componente FormModal movido para fora para evitar re-renders
-const FormModal = ({ visible, onClose, title, onSave, children, styles, closeColor }: any) => (
-  <Modal visible={visible} transparent animationType="slide">
-    <View style={styles.modalOverlay}>
-      <View style={styles.modalContent}>
-        <View style={styles.modalHeader}>
-          <Text style={styles.modalTitle}>{title}</Text>
-          <TouchableOpacity onPress={onClose}>
-            <Ionicons name="close" size={24} color={closeColor || "#64748b"} />
-          </TouchableOpacity>
-        </View>
-        <ScrollView style={{ maxHeight: 400 }} showsVerticalScrollIndicator={false}>
-          {children}
-        </ScrollView>
-        <TouchableOpacity style={styles.saveBtn} onPress={onSave}>
-          <Text style={styles.saveBtnText}>Salvar</Text>
-        </TouchableOpacity>
+// Componente de Gráfico Donut (Pizza)
+const DonutChart = ({
+  data,
+  colors,
+  size = 200,
+  strokeWidth = 30
+}: {
+  data: { label: string; value: number; color: string }[],
+  colors: any,
+  size?: number,
+  strokeWidth?: number
+}) => {
+  if (!data || data.length === 0) return null;
+
+  const total = data.reduce((sum, item) => sum + item.value, 0);
+  if (total === 0) return null;
+
+  const radius = (size - strokeWidth) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const center = size / 2;
+
+  let currentAngle = -90; // Começar do topo
+
+  return (
+    <View style={{ alignItems: 'center' }}>
+      <Svg width={size} height={size}>
+        {data.map((item, index) => {
+          const percentage = item.value / total;
+          const strokeDasharray = `${circumference * percentage} ${circumference * (1 - percentage)}`;
+          const rotation = currentAngle;
+          currentAngle += percentage * 360;
+
+          return (
+            <Circle
+              key={index}
+              cx={center}
+              cy={center}
+              r={radius}
+              fill="none"
+              stroke={item.color}
+              strokeWidth={strokeWidth}
+              strokeDasharray={strokeDasharray}
+              strokeLinecap="round"
+              transform={`rotate(${rotation} ${center} ${center})`}
+            />
+          );
+        })}
+        {/* Centro do donut */}
+        <Circle
+          cx={center}
+          cy={center}
+          r={radius - strokeWidth / 2 - 5}
+          fill={colors.card}
+        />
+      </Svg>
+      {/* Valor central */}
+      <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, justifyContent: 'center', alignItems: 'center' }}>
+        <Text style={{ fontSize: 24, fontWeight: 'bold', color: colors.text }}>
+          {data.length}
+        </Text>
+        <Text style={{ fontSize: 11, color: colors.textMuted }}>Categorias</Text>
       </View>
     </View>
-  </Modal>
-);
+  );
+};
 
-// Função para criar estilos dinâmicos baseados no tema
-const createStyles = (colors: any) => StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
-  scrollView: { flex: 1 },
+// Componente de Gráfico de Barras Vertical
+const BarChart = ({
+  data,
+  colors,
+  width,
+  height,
+  labels
+}: {
+  data: { receitas: number; despesas: number }[],
+  colors: any,
+  width: number,
+  height: number,
+  labels: string[]
+}) => {
+  if (!data || data.length === 0) return null;
 
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 24, paddingTop: isWeb ? 20 : 50, paddingBottom: 10, backgroundColor: colors.card, borderBottomWidth: 1, borderBottomColor: colors.border },
-  logoContainer: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  logoText: { fontSize: 22, fontWeight: 'bold', color: colors.primary },
-  logoIcon: { width: 32, height: 32, marginRight: 8 },
+  const maxValue = Math.max(...data.flatMap(d => [d.receitas, d.despesas]), 1);
+  const padding = { top: 20, right: 20, bottom: 40, left: 50 };
+  const chartWidth = width - padding.left - padding.right;
+  const chartHeight = height - padding.top - padding.bottom;
+  const barGroupWidth = chartWidth / data.length;
+  const barWidth = barGroupWidth * 0.35;
+  const gap = barGroupWidth * 0.1;
 
-  filterContainer: { backgroundColor: colors.card, borderBottomWidth: 1, borderBottomColor: colors.border, flexDirection: 'row', alignItems: 'center' },
-  monthsNav: { flex: 1 },
-  monthsNavContent: { paddingHorizontal: 16, paddingVertical: 12, gap: 8 },
-  monthTab: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, backgroundColor: colors.inputBg },
-  monthTabActive: { backgroundColor: colors.primary },
-  monthTabText: { fontSize: 13, color: colors.textSecondary, fontWeight: '500' },
-  monthTabTextActive: { color: '#fff' },
+  return (
+    <Svg width={width} height={height}>
+      <Defs>
+        <LinearGradient id="receitaGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+          <Stop offset="0%" stopColor={colors.primary} stopOpacity="1" />
+          <Stop offset="100%" stopColor={colors.primary} stopOpacity="0.6" />
+        </LinearGradient>
+        <LinearGradient id="despesaGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+          <Stop offset="0%" stopColor={colors.danger} stopOpacity="1" />
+          <Stop offset="100%" stopColor={colors.danger} stopOpacity="0.6" />
+        </LinearGradient>
+      </Defs>
 
-  filterBtn: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, backgroundColor: colors.inputBg, marginRight: 16, gap: 6 },
-  filterBtnActive: { backgroundColor: colors.primary },
-  filterBtnText: { fontSize: 12, color: colors.textSecondary, fontWeight: '500' },
-  filterBtnTextActive: { color: '#fff' },
-  filterBtnsRow: { flexDirection: 'row', marginTop: 20 },
-  moedaFilterBtn: { backgroundColor: colors.primaryLight, borderWidth: 1, borderColor: colors.primary, marginRight: 8 },
-  moedaFilterBtnText: { fontSize: 12, color: colors.primary, fontWeight: '600' },
+      {/* Grid lines */}
+      {[0, 0.25, 0.5, 0.75, 1].map((ratio, i) => (
+        <G key={i}>
+          <Line
+            x1={padding.left}
+            y1={padding.top + chartHeight * (1 - ratio)}
+            x2={width - padding.right}
+            y2={padding.top + chartHeight * (1 - ratio)}
+            stroke={colors.chartGrid}
+            strokeWidth="1"
+            strokeDasharray="4 4"
+          />
+          <SvgText
+            x={padding.left - 10}
+            y={padding.top + chartHeight * (1 - ratio) + 4}
+            fill={colors.textMuted}
+            fontSize="10"
+            textAnchor="end"
+          >
+            {maxValue * ratio >= 1000 ? `${((maxValue * ratio) / 1000).toFixed(0)}K` : (maxValue * ratio).toFixed(0)}
+          </SvgText>
+        </G>
+      ))}
 
-  mainGrid: { flexDirection: 'row', flexWrap: 'wrap', padding: 16, gap: 16 },
-  card: { backgroundColor: colors.card, borderRadius: 12, overflow: 'hidden', width: isWeb ? 'calc(33.333% - 12px)' : '100%', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2, borderWidth: 1, borderColor: colors.cardBorder },
-  cardWide: { width: isWeb ? 'calc(66.666% - 8px)' : '100%' },
-  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12 },
-  cardHeaderText: { color: '#fff', fontSize: 14, fontWeight: '600' },
-  cardHeaderLeft: { flexDirection: 'row', alignItems: 'center' },
-  cardIcon: { width: 24, height: 24, marginRight: 8 },
-  addBtn: { width: 28, height: 28, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center' },
-  configBtn: { width: 28, height: 28, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.15)', justifyContent: 'center', alignItems: 'center' },
-  categoriaItemContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.inputBg, borderRadius: 10, padding: 12, marginBottom: 8 },
-  categoriaItemIcon: { width: 12, height: 12, borderRadius: 6, marginRight: 12 },
-  categoriaItemNome: { fontSize: 14, color: colors.text, fontWeight: '500' },
-  categoriaItemBadge: { fontSize: 11, color: colors.textSecondary, backgroundColor: colors.border, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10, marginLeft: 'auto' },
-  categoriaActionBtn: { padding: 8, marginLeft: 4 },
-  cardBody: { padding: 16 },
+      {/* Barras */}
+      {data.map((item, index) => {
+        const x = padding.left + index * barGroupWidth + gap;
+        const receitaHeight = (item.receitas / maxValue) * chartHeight;
+        const despesaHeight = (item.despesas / maxValue) * chartHeight;
 
-  tableHeader: { flexDirection: 'row', paddingBottom: 8, borderBottomWidth: 1, borderBottomColor: colors.border, marginBottom: 8 },
-  tableHeaderText: { fontSize: 10, fontWeight: '600', color: colors.textMuted, textTransform: 'uppercase' },
-  tableRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colors.border },
-  tableCell: { fontSize: 13, color: colors.textSecondary },
+        return (
+          <G key={index}>
+            {/* Barra de Receita */}
+            <Rect
+              x={x}
+              y={padding.top + chartHeight - receitaHeight}
+              width={barWidth}
+              height={receitaHeight}
+              fill="url(#receitaGradient)"
+              rx={4}
+            />
+            {/* Barra de Despesa */}
+            <Rect
+              x={x + barWidth + gap / 2}
+              y={padding.top + chartHeight - despesaHeight}
+              width={barWidth}
+              height={despesaHeight}
+              fill="url(#despesaGradient)"
+              rx={4}
+            />
+            {/* Label */}
+            <SvgText
+              x={x + barWidth + gap / 4}
+              y={height - 15}
+              fill={colors.textMuted}
+              fontSize="10"
+              textAnchor="middle"
+            >
+              {labels[index] || ''}
+            </SvgText>
+          </G>
+        );
+      })}
+    </Svg>
+  );
+};
 
-  totalRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: colors.border },
-  totalLabel: { fontSize: 13, fontWeight: '600', color: colors.textSecondary },
-  totalValue: { fontSize: 15, fontWeight: 'bold', color: colors.success },
+// Componente de Barras Horizontais (Ranking)
+const HorizontalBarChart = ({
+  data,
+  colors,
+  maxWidth = 200
+}: {
+  data: { label: string; value: number; color: string; icon?: string }[],
+  colors: any,
+  maxWidth?: number
+}) => {
+  if (!data || data.length === 0) return null;
 
-  emptyText: { color: colors.textMuted, fontSize: 13, textAlign: 'center', paddingVertical: 20 },
+  const maxValue = Math.max(...data.map(d => d.value), 1);
 
-  donutCenter: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, justifyContent: 'center', alignItems: 'center' },
-  donutLabel: { fontSize: 11, color: colors.textSecondary },
-  donutValue: { fontSize: 20, fontWeight: 'bold' },
+  return (
+    <View style={{ gap: 12 }}>
+      {data.map((item, index) => (
+        <View key={index} style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+          <View style={{
+            width: 36,
+            height: 36,
+            borderRadius: 10,
+            backgroundColor: item.color + '20',
+            justifyContent: 'center',
+            alignItems: 'center'
+          }}>
+            <Ionicons name={item.icon as any || 'ellipsis-horizontal'} size={18} color={item.color} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+              <Text style={{ fontSize: 13, color: colors.text, fontWeight: '500' }}>{item.label}</Text>
+              <Text style={{ fontSize: 13, color: colors.textSecondary, fontWeight: '600' }}>
+                {((item.value / maxValue) * 100).toFixed(0)}%
+              </Text>
+            </View>
+            <View style={{
+              height: 8,
+              backgroundColor: colors.border,
+              borderRadius: 4,
+              overflow: 'hidden'
+            }}>
+              <View style={{
+                width: `${(item.value / maxValue) * 100}%`,
+                height: '100%',
+                backgroundColor: item.color,
+                borderRadius: 4
+              }} />
+            </View>
+          </View>
+        </View>
+      ))}
+    </View>
+  );
+};
 
-  summaryRow: { flexDirection: 'row', justifyContent: 'space-around', width: '100%', marginTop: 16 },
-  summaryItem: { alignItems: 'center' },
-  summaryLabel: { fontSize: 11, color: colors.textSecondary, marginBottom: 4 },
-  summaryValue: { fontSize: 16, fontWeight: 'bold' },
-  summaryPercent: { fontSize: 11, color: colors.success, marginTop: 2 },
+// Componente Mini Sparkline
+const Sparkline = ({
+  data,
+  color,
+  width = 80,
+  height = 30
+}: {
+  data: number[],
+  color: string,
+  width?: number,
+  height?: number
+}) => {
+  if (!data || data.length < 2) return null;
 
-  legendContainer: { marginTop: 16, width: '100%' },
-  legendItem: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
-  legendDot: { width: 12, height: 12, borderRadius: 6, marginRight: 8 },
-  legendText: { flex: 1, fontSize: 12, color: colors.textSecondary },
-  legendValue: { fontSize: 12, fontWeight: '600', color: colors.text },
+  const maxValue = Math.max(...data, 1);
+  const minValue = Math.min(...data, 0);
+  const range = maxValue - minValue || 1;
 
-  chartLegend: { flexDirection: 'row', justifyContent: 'center', gap: 24, marginTop: 16 },
-  chartLegendItem: { flexDirection: 'row', alignItems: 'center' },
+  const points = data.map((value, index) => ({
+    x: (index / (data.length - 1)) * width,
+    y: height - ((value - minValue) / range) * height
+  }));
 
-  saldoInfo: { marginTop: 16, alignItems: 'center' },
-  saldoInfoLabel: { fontSize: 12, color: colors.textSecondary },
-  saldoInfoValue: { fontSize: 20, fontWeight: 'bold', marginTop: 4 },
+  let pathD = `M ${points[0].x} ${points[0].y}`;
+  for (let i = 1; i < points.length; i++) {
+    pathD += ` L ${points[i].x} ${points[i].y}`;
+  }
 
-  lancamentoItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.border },
-  lancamentoIcon: { width: 40, height: 40, borderRadius: 10, justifyContent: 'center', alignItems: 'center', marginRight: 12 },
-  lancamentoInfo: { flex: 1 },
-  lancamentoDesc: { fontSize: 14, fontWeight: '500', color: colors.text },
-  lancamentoCat: { fontSize: 12, color: colors.textSecondary, marginTop: 2 },
-  lancamentoValor: { fontSize: 14, fontWeight: '600' },
+  return (
+    <Svg width={width} height={height}>
+      <Path d={pathD} fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" />
+      <Circle cx={points[points.length - 1].x} cy={points[points.length - 1].y} r="3" fill={color} />
+    </Svg>
+  );
+};
 
-  metaItem: { marginBottom: 16 },
-  metaName: { fontSize: 13, color: colors.text, marginBottom: 6 },
-  metaBarBg: { height: 8, backgroundColor: colors.border, borderRadius: 4, overflow: 'hidden' },
-  metaBar: { height: 8, borderRadius: 4 },
-  metaPercent: { fontSize: 12, color: colors.textSecondary, marginTop: 4, textAlign: 'right' },
+// Componente Gauge/Velocímetro
+const GaugeChart = ({
+  value,
+  maxValue,
+  colors,
+  size = 120,
+  label
+}: {
+  value: number,
+  maxValue: number,
+  colors: any,
+  size?: number,
+  label: string
+}) => {
+  const percentage = Math.min(value / maxValue, 1);
+  const radius = size / 2 - 15;
+  const circumference = Math.PI * radius; // Meio círculo
+  const strokeDasharray = `${circumference * percentage} ${circumference}`;
+  const center = size / 2;
 
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 20 },
-  modalContent: { backgroundColor: colors.card, borderRadius: 16, padding: 24, maxHeight: '80%' },
-  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
-  modalTitle: { fontSize: 18, fontWeight: 'bold', color: colors.text },
-  inputLabel: { fontSize: 13, fontWeight: '500', color: colors.textSecondary, marginBottom: 6, marginTop: 12 },
-  input: { backgroundColor: colors.inputBg, borderWidth: 1, borderColor: colors.border, borderRadius: 8, padding: 12, fontSize: 15, color: colors.text },
-  saveBtn: { backgroundColor: colors.primary, borderRadius: 8, padding: 14, alignItems: 'center', marginTop: 20 },
-  saveBtnText: { color: '#fff', fontSize: 15, fontWeight: '600' },
+  // Cor baseada no percentual
+  const getColor = () => {
+    if (percentage < 0.5) return colors.success;
+    if (percentage < 0.8) return colors.warning;
+    return colors.danger;
+  };
 
-  // Estilos do Calendário
-  datePickerRow: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', marginTop: 8 },
-  datePickerCol: { flex: 1 },
-  datePickerArrow: { paddingHorizontal: 12, paddingBottom: 12 },
-  datePickerBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.inputBg, borderWidth: 1, borderColor: colors.border, borderRadius: 8, padding: 12, gap: 8 },
-  datePickerBtnActive: { backgroundColor: colors.primary, borderColor: colors.primary },
-  datePickerText: { fontSize: 14, color: colors.text, fontWeight: '500' },
-  datePickerTextActive: { color: '#fff' },
-
-  calendarioContainer: { marginTop: 16, backgroundColor: colors.inputBg, borderRadius: 12, padding: 16 },
-  calendarioLabel: { fontSize: 12, color: colors.primary, fontWeight: '600', marginBottom: 12, textAlign: 'center' },
-  calendario: { },
-  calHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
-  calNavBtn: { padding: 8, backgroundColor: colors.border, borderRadius: 8 },
-  calMesAno: { fontSize: 16, fontWeight: '600', color: colors.text },
-  calSemana: { flexDirection: 'row', marginBottom: 8 },
-  calSemanaText: { flex: 1, textAlign: 'center', fontSize: 12, fontWeight: '600', color: colors.textMuted },
-  calGrid: { flexDirection: 'row', flexWrap: 'wrap' },
-  calDia: { width: '14.28%', aspectRatio: 1, justifyContent: 'center', alignItems: 'center', marginVertical: 2 },
-  calDiaText: { fontSize: 14, color: colors.text },
-  calDiaInicio: { backgroundColor: colors.primary, borderRadius: 20 },
-  calDiaFim: { backgroundColor: colors.success, borderRadius: 20 },
-  calDiaHoje: { borderWidth: 2, borderColor: colors.primary, borderRadius: 20 },
-  calDiaTextSelected: { color: '#fff', fontWeight: '600' },
-
-  periodoResumo: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 16, padding: 12, backgroundColor: colors.successLight, borderRadius: 8, gap: 8 },
-  periodoResumoText: { fontSize: 14, color: colors.primary, fontWeight: '500' },
-
-  // Estilos do Seletor de Categorias
-  categoriasContainer: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 },
-  categoriaChip: { paddingHorizontal: 14, paddingVertical: 8, backgroundColor: colors.inputBg, borderRadius: 20, borderWidth: 1, borderColor: colors.border },
-  categoriaChipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
-  categoriaChipText: { fontSize: 13, color: colors.textSecondary, fontWeight: '500' },
-  categoriaChipTextActive: { color: '#fff' },
-  categoriaChipAdd: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colors.primaryLight, borderColor: colors.primary },
-  categoriaChipAddText: { fontSize: 13, color: colors.primary, fontWeight: '500' },
-  novaCategoriaContainer: { flexDirection: 'row', alignItems: 'center', marginTop: 12, gap: 8 },
-  novaCategoriaBtn: { backgroundColor: colors.primary, borderRadius: 8, padding: 10 },
-
-  // Estilos do Campo de Valor e Seletor de Moeda
-  valorInputContainer: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 },
-  valorInput: { flex: 1, marginTop: 0 },
-  moedaBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colors.primaryLight, paddingHorizontal: 14, paddingVertical: 12, borderRadius: 8, borderWidth: 1, borderColor: colors.primary },
-  moedaBtnText: { fontSize: 16, fontWeight: '700', color: colors.primary },
-  moedaModalContent: { backgroundColor: colors.card, borderRadius: 16, padding: 20, width: '90%', maxWidth: 340 },
-  moedaModalTitle: { fontSize: 18, fontWeight: '700', color: colors.text, marginBottom: 16, textAlign: 'center' },
-  moedaOption: { flexDirection: 'row', alignItems: 'center', padding: 14, borderRadius: 10, marginBottom: 8, backgroundColor: colors.inputBg, gap: 12 },
-  moedaOptionActive: { backgroundColor: colors.primaryLight, borderWidth: 1, borderColor: colors.primary },
-  moedaOptionSimbolo: { fontSize: 20, fontWeight: '700', color: colors.primary, width: 40, textAlign: 'center' },
-  moedaOptionNome: { fontSize: 14, fontWeight: '600', color: colors.text },
-  moedaOptionCodigo: { fontSize: 12, color: colors.textMuted },
-});
+  return (
+    <View style={{ alignItems: 'center' }}>
+      <Svg width={size} height={size / 2 + 20}>
+        {/* Background arc */}
+        <Path
+          d={`M ${15} ${center} A ${radius} ${radius} 0 0 1 ${size - 15} ${center}`}
+          fill="none"
+          stroke={colors.border}
+          strokeWidth="12"
+          strokeLinecap="round"
+        />
+        {/* Value arc */}
+        <Path
+          d={`M ${15} ${center} A ${radius} ${radius} 0 0 1 ${size - 15} ${center}`}
+          fill="none"
+          stroke={getColor()}
+          strokeWidth="12"
+          strokeLinecap="round"
+          strokeDasharray={strokeDasharray}
+        />
+      </Svg>
+      <View style={{ position: 'absolute', bottom: 10, alignItems: 'center' }}>
+        <Text style={{ fontSize: 20, fontWeight: 'bold', color: colors.text }}>
+          {(percentage * 100).toFixed(0)}%
+        </Text>
+        <Text style={{ fontSize: 11, color: colors.textMuted }}>{label}</Text>
+      </View>
+    </View>
+  );
+};
 
 export default function DashboardScreen() {
-  const [transacoes, setTransacoes] = useState<Transaction[]>([]);
-  const { theme, isDark } = useTheme();
+  const { theme, isDark, toggleTheme } = useTheme();
   const colors = theme.colors;
-  const styles = useMemo(() => createStyles(colors), [colors]);
-  const [contasFixas, setContasFixas] = useState<ContaFixa[]>([]);
-  const [metas, setMetas] = useState<Meta[]>([]);
-  const [investimentos, setInvestimentos] = useState<Investimento[]>([]);
-  const [refreshing, setRefreshing] = useState(false);
-  const [mesSelecionado, setMesSelecionado] = useState(new Date().getMonth());
-  const [anoSelecionado, setAnoSelecionado] = useState(new Date().getFullYear());
-  
-  // Filtro de data personalizado
-  const [filtroAtivo, setFiltroAtivo] = useState<'mes' | 'periodo'>('mes');
-  const [dataInicio, setDataInicio] = useState('');
-  const [dataFim, setDataFim] = useState('');
-  const [modalFiltro, setModalFiltro] = useState(false);
-  
-  // Calendário
-  const [calendarioAtivo, setCalendarioAtivo] = useState<'inicio' | 'fim' | null>(null);
-  const [calMes, setCalMes] = useState(new Date().getMonth());
-  const [calAno, setCalAno] = useState(new Date().getFullYear());
-  
-  // Modais
-  const [modalEntrada, setModalEntrada] = useState(false);
-  const [modalContaFixa, setModalContaFixa] = useState(false);
-  const [modalGasto, setModalGasto] = useState(false);
-  const [modalMeta, setModalMeta] = useState(false);
-  const [modalInvestimento, setModalInvestimento] = useState(false);
-  
-  // Forms
-  const [formNome, setFormNome] = useState('');
-  const [formValor, setFormValor] = useState('');
-  const [formValorNumerico, setFormValorNumerico] = useState(0);
-  const [formCategoria, setFormCategoria] = useState('Alimentação');
-  const [formDia, setFormDia] = useState('1');
-  const [formParcelas, setFormParcelas] = useState('1');
-  const [formTipo, setFormTipo] = useState('');
-  const [formTicker, setFormTicker] = useState('');
-  
-  // Moeda selecionada para entrada de dados
-  const [moedaSelecionada, setMoedaSelecionada] = useState(MOEDAS[0]); // BRL como padrão
-  const [mostrarSeletorMoeda, setMostrarSeletorMoeda] = useState(false);
-  
-  // Moeda de visualização (converte valores para essa moeda)
-  const [moedaVisualizacao, setMoedaVisualizacao] = useState<string>('TODAS');
-  const [mostrarSeletorMoedaVis, setMostrarSeletorMoedaVis] = useState(false);
-  
-  // Cotações em tempo real (base: BRL)
-  // Valor = quanto 1 unidade da moeda vale em BRL
-  const [cotacoes, setCotacoes] = useState<{ [key: string]: number }>({
-    BRL: 1,
-    USD: 6.0,
-    EUR: 6.5,
-    GBP: 7.5,
-    JPY: 0.04,
-  });
-  const [cotacoesCarregadas, setCotacoesCarregadas] = useState(false);
 
-  // Buscar cotações em tempo real
+  const [transacoes, setTransacoes] = useState<Transaction[]>([]);
+  const [contasFixas, setContasFixas] = useState<ContaFixa[]>([]);
+  const [refreshing, setRefreshing] = useState(false);
+  const [userName, setUserName] = useState('Usuário');
+
+  // Filtros de período
+  const [dataInicio, setDataInicio] = useState<Date>(() => {
+    const d = new Date();
+    d.setDate(1); // Primeiro dia do mês
+    return d;
+  });
+  const [dataFim, setDataFim] = useState<Date>(new Date());
+  const [showCalendar, setShowCalendar] = useState(false);
+  const [calendarioMes, setCalendarioMes] = useState(new Date().getMonth());
+  const [calendarioAno, setCalendarioAno] = useState(new Date().getFullYear());
+  const [selecionandoInicio, setSelecionandoInicio] = useState(true);
+
+  // Modo de visualização de moeda
+  const [modoMoeda, setModoMoeda] = useState<ModoMoeda>('MISTO');
+  const [showMoedaSelector, setShowMoedaSelector] = useState(false);
+
+  // Cotações
+  const [cotacoes, setCotacoes] = useState<{ [key: string]: number }>({
+    BRL: 1, USD: 6.0, EUR: 6.5, GBP: 7.5, JPY: 0.04,
+  });
+
+  // Buscar dados
+  const fetchData = async () => {
+    try {
+      const token = await AsyncStorage.getItem('token');
+      const headers = { Authorization: `Bearer ${token}` };
+
+      const [transRes, contasRes, userRes] = await Promise.all([
+        fetch(`${API_URL}/transactions/`, { headers }),
+        fetch(`${API_URL}/contas-fixas/`, { headers }),
+        fetch(`${API_URL}/auth/me`, { headers }),
+      ]);
+
+      if (transRes.ok) setTransacoes(await transRes.json());
+      if (contasRes.ok) setContasFixas(await contasRes.json());
+      if (userRes.ok) {
+        const user = await userRes.json();
+        setUserName(user.name || 'Usuário');
+      }
+    } catch (error) {
+      console.log('Erro ao buscar dados');
+    }
+  };
+
+  // Buscar cotações
   useEffect(() => {
     const fetchCotacoes = async () => {
       try {
@@ -350,215 +582,16 @@ export default function DashboardScreen() {
           GBP: parseFloat(data.GBPBRL?.bid) || 7.5,
           JPY: parseFloat(data.JPYBRL?.bid) || 0.04,
         });
-        setCotacoesCarregadas(true);
-        console.log('Cotações atualizadas:', data);
       } catch (error) {
-        console.log('Erro ao buscar cotações, usando valores padrão');
-        setCotacoesCarregadas(true);
+        console.log('Usando cotações padrão');
       }
     };
     fetchCotacoes();
-    // Atualizar cotações a cada 5 minutos
     const interval = setInterval(fetchCotacoes, 5 * 60 * 1000);
     return () => clearInterval(interval);
   }, []);
-  
-  // Carregar moeda preferida do storage
-  useEffect(() => {
-    const loadMoeda = async () => {
-      try {
-        const saved = await AsyncStorage.getItem('moedaPreferida');
-        if (saved) {
-          const moeda = MOEDAS.find(m => m.codigo === saved);
-          if (moeda) setMoedaSelecionada(moeda);
-        }
-        const savedVis = await AsyncStorage.getItem('moedaVisualizacao');
-        if (savedVis) setMoedaVisualizacao(savedVis);
-      } catch (e) { console.log('Erro ao carregar moeda'); }
-    };
-    loadMoeda();
-  }, []);
 
-  // Salvar moeda preferida
-  const salvarMoeda = async (moeda: typeof MOEDAS[0]) => {
-    setMoedaSelecionada(moeda);
-    setMostrarSeletorMoeda(false);
-    await AsyncStorage.setItem('moedaPreferida', moeda.codigo);
-  };
-
-  // Salvar moeda de visualização
-  const salvarMoedaVisualizacao = async (codigo: string) => {
-    setMoedaVisualizacao(codigo);
-    setMostrarSeletorMoedaVis(false);
-    await AsyncStorage.setItem('moedaVisualizacao', codigo);
-  };
-
-  // Função para formatar valor enquanto digita
-  const formatarValorInput = (texto: string) => {
-    // Remove tudo que não é número
-    const apenasNumeros = texto.replace(/\D/g, '');
-    
-    if (!apenasNumeros) {
-      setFormValor('');
-      setFormValorNumerico(0);
-      return;
-    }
-    
-    // Converte para número considerando decimais
-    const valorNumerico = moedaSelecionada.decimais > 0 
-      ? parseInt(apenasNumeros) / Math.pow(10, moedaSelecionada.decimais)
-      : parseInt(apenasNumeros);
-    
-    setFormValorNumerico(valorNumerico);
-    
-    // Formata para exibição
-    const valorFormatado = valorNumerico.toLocaleString(moedaSelecionada.locale, {
-      minimumFractionDigits: moedaSelecionada.decimais,
-      maximumFractionDigits: moedaSelecionada.decimais,
-    });
-    
-    setFormValor(`${moedaSelecionada.simbolo} ${valorFormatado}`);
-  };
-
-  // Função para converter valor entre moedas
-  const converterMoeda = (valor: number, moedaOrigem: string, moedaDestino: string): number => {
-    if (moedaOrigem === moedaDestino) return valor;
-    // Converte para BRL primeiro, depois para moeda destino
-    const valorEmBRL = valor * (cotacoes[moedaOrigem] || 1);
-    const valorConvertido = valorEmBRL / (cotacoes[moedaDestino] || 1);
-    return valorConvertido;
-  };
-
-  // Função para formatar moeda para exibição (com moeda específica)
-  const formatCurrencyWithCode = (value: number, codigo: string = 'BRL') => {
-    const moeda = MOEDAS.find(m => m.codigo === codigo) || MOEDAS[0];
-    return value.toLocaleString(moeda.locale, { 
-      style: 'currency', 
-      currency: moeda.codigo 
-    });
-  };
-
-  // Função para formatar valor com conversão opcional
-  const formatValorExibicao = (valor: number, moedaOriginal: string = 'BRL') => {
-    if (moedaVisualizacao === 'TODAS') {
-      // Mostra na moeda original
-      return formatCurrencyWithCode(valor, moedaOriginal);
-    } else {
-      // Converte para moeda de visualização
-      const valorConvertido = converterMoeda(valor, moedaOriginal, moedaVisualizacao);
-      return formatCurrencyWithCode(valorConvertido, moedaVisualizacao);
-    }
-  };
-
-  // Função para formatar moeda para exibição (usado nos cards)
-  const formatCurrency = (value: number) => {
-    return value.toLocaleString(moedaSelecionada.locale, { 
-      style: 'currency', 
-      currency: moedaSelecionada.codigo 
-    });
-  };
-  
-  // Categorias personalizadas
-  const [categoriasPersonalizadas, setCategoriasPersonalizadas] = useState<string[]>([]);
-  const [mostrarNovaCategoria, setMostrarNovaCategoria] = useState(false);
-  const [novaCategoria, setNovaCategoria] = useState('');
-  const [modalGerenciarCategorias, setModalGerenciarCategorias] = useState(false);
-  const [editandoCategoria, setEditandoCategoria] = useState<string | null>(null);
-  const [novoNomeCategoria, setNovoNomeCategoria] = useState('');
-  
-  // Todas as categorias disponíveis
-  const todasCategorias = useMemo(() => {
-    return [...CATEGORIAS_PADRAO, ...categoriasPersonalizadas];
-  }, [categoriasPersonalizadas]);
-
-  // Carregar categorias personalizadas do storage
-  useEffect(() => {
-    const loadCategorias = async () => {
-      try {
-        const saved = await AsyncStorage.getItem('categoriasPersonalizadas');
-        if (saved) setCategoriasPersonalizadas(JSON.parse(saved));
-      } catch (e) { console.log('Erro ao carregar categorias'); }
-    };
-    loadCategorias();
-  }, []);
-
-  // Salvar nova categoria
-  const adicionarCategoria = async () => {
-    if (novaCategoria.trim() && !todasCategorias.includes(novaCategoria.trim())) {
-      const novas = [...categoriasPersonalizadas, novaCategoria.trim()];
-      setCategoriasPersonalizadas(novas);
-      await AsyncStorage.setItem('categoriasPersonalizadas', JSON.stringify(novas));
-      setFormCategoria(novaCategoria.trim());
-      setNovaCategoria('');
-      setMostrarNovaCategoria(false);
-    }
-  };
-
-  // Editar categoria personalizada
-  const editarCategoria = async (categoriaAntiga: string) => {
-    if (!novoNomeCategoria.trim() || novoNomeCategoria.trim() === categoriaAntiga) {
-      setEditandoCategoria(null);
-      setNovoNomeCategoria('');
-      return;
-    }
-    
-    // Verificar se já existe
-    if (todasCategorias.includes(novoNomeCategoria.trim()) && novoNomeCategoria.trim() !== categoriaAntiga) {
-      return;
-    }
-
-    const novas = categoriasPersonalizadas.map(c => 
-      c === categoriaAntiga ? novoNomeCategoria.trim() : c
-    );
-    setCategoriasPersonalizadas(novas);
-    await AsyncStorage.setItem('categoriasPersonalizadas', JSON.stringify(novas));
-    setEditandoCategoria(null);
-    setNovoNomeCategoria('');
-  };
-
-  // Remover categoria personalizada
-  const removerCategoria = async (categoria: string) => {
-    const novas = categoriasPersonalizadas.filter(c => c !== categoria);
-    setCategoriasPersonalizadas(novas);
-    await AsyncStorage.setItem('categoriasPersonalizadas', JSON.stringify(novas));
-  };
-
-  // Adicionar categoria do modal de gerenciamento
-  const adicionarCategoriaGerenciamento = async () => {
-    if (novaCategoria.trim() && !todasCategorias.includes(novaCategoria.trim())) {
-      const novas = [...categoriasPersonalizadas, novaCategoria.trim()];
-      setCategoriasPersonalizadas(novas);
-      await AsyncStorage.setItem('categoriasPersonalizadas', JSON.stringify(novas));
-      setNovaCategoria('');
-    }
-  };
-
-  const fetchData = async () => {
-    try {
-      const token = await AsyncStorage.getItem('token');
-      const headers = { Authorization: `Bearer ${token}` };
-
-      // Transações
-      const resTrans = await fetch(`${API_URL}/transactions/`, { headers });
-      if (resTrans.ok) setTransacoes(await resTrans.json());
-
-      // Contas Fixas
-      const resContas = await fetch(`${API_URL}/contas-fixas/?mes=${mesSelecionado + 1}&ano=${anoSelecionado}`, { headers });
-      if (resContas.ok) setContasFixas(await resContas.json());
-
-      // Metas
-      const resMetas = await fetch(`${API_URL}/metas/`, { headers });
-      if (resMetas.ok) setMetas(await resMetas.json());
-
-      // Investimentos
-      const resInvest = await fetch(`${API_URL}/investimentos/`, { headers });
-      if (resInvest.ok) setInvestimentos(await resInvest.json());
-    } catch (error) {
-      console.log('Erro ao buscar dados');
-    }
-  };
-
-  useEffect(() => { fetchData(); }, [mesSelecionado, anoSelecionado]);
+  useEffect(() => { fetchData(); }, []);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -566,1364 +599,1794 @@ export default function DashboardScreen() {
     setRefreshing(false);
   };
 
-  // Filtrar transações do mês ou período (sem filtrar por moeda - mostra tudo)
+  // Transações filtradas por período
   const transacoesFiltradas = useMemo(() => {
-    let filtered = transacoes;
-    
-    // Filtro por período
-    if (filtroAtivo === 'periodo' && dataInicio && dataFim) {
-      const inicio = new Date(dataInicio);
-      const fim = new Date(dataFim);
-      filtered = filtered.filter(t => {
-        const d = new Date(t.data);
-        return d >= inicio && d <= fim;
-      });
-    } else {
-      filtered = filtered.filter(t => {
-        const d = new Date(t.data);
-        return d.getMonth() === mesSelecionado && d.getFullYear() === anoSelecionado;
-      });
-    }
-    
-    return filtered;
-  }, [transacoes, mesSelecionado, anoSelecionado, filtroAtivo, dataInicio, dataFim]);
+    return transacoes.filter(t => {
+      const tDate = new Date(t.data);
+      return tDate >= dataInicio && tDate <= dataFim;
+    });
+  }, [transacoes, dataInicio, dataFim]);
 
-  // Moedas únicas nas transações (para saber quais moedas o usuário usa)
-  const moedasEmUso = useMemo(() => {
-    const moedas = new Set<string>();
-    transacoes.forEach(t => moedas.add(t.moeda || 'BRL'));
-    contasFixas.forEach(c => moedas.add(c.moeda || 'BRL'));
-    investimentos.forEach(i => moedas.add(i.moeda || 'BRL'));
-    return Array.from(moedas);
-  }, [transacoes, contasFixas, investimentos]);
+  // Cálculos por moeda (com filtro de período)
+  const calcularPorMoeda = useMemo(() => {
+    const resultado: { [moeda: string]: { receitas: number, despesas: number, saldo: number } } = {};
 
-  // Função para obter valor convertido
-  const getValorConvertido = (valor: number, moedaOriginal: string = 'BRL') => {
-    if (moedaVisualizacao === 'TODAS') {
-      return valor; // Retorna valor original
-    }
-    return converterMoeda(valor, moedaOriginal, moedaVisualizacao);
-  };
+    transacoesFiltradas.forEach(t => {
+      const moeda = t.moeda || 'BRL';
+      if (!resultado[moeda]) {
+        resultado[moeda] = { receitas: 0, despesas: 0, saldo: 0 };
+      }
+      if (t.tipo === 'receita') {
+        resultado[moeda].receitas += t.valor;
+        resultado[moeda].saldo += t.valor;
+      } else {
+        resultado[moeda].despesas += t.valor;
+        resultado[moeda].saldo -= t.valor;
+      }
+    });
 
-  // Calcular totais
-  const entradas = useMemo(() => {
-    return transacoesFiltradas.filter(t => t.tipo === 'receita');
+    return resultado;
   }, [transacoesFiltradas]);
 
-  const gastosVariaveis = useMemo(() => {
-    return transacoesFiltradas.filter(t => t.tipo === 'despesa');
-  }, [transacoesFiltradas]);
+  // Converter valor para moeda destino
+  const converterParaMoeda = useCallback((valor: number, moedaOrigem: string, moedaDestino: string) => {
+    if (moedaOrigem === moedaDestino) return valor;
+    // Primeiro converte para BRL, depois para moeda destino
+    const valorEmBRL = valor * (cotacoes[moedaOrigem] || 1);
+    return valorEmBRL / (cotacoes[moedaDestino] || 1);
+  }, [cotacoes]);
 
-  // Totais com conversão
-  const totalEntradas = useMemo(() => {
-    return entradas.reduce((sum, t) => sum + getValorConvertido(t.valor, t.moeda || 'BRL'), 0);
-  }, [entradas, moedaVisualizacao, cotacoes]);
+  // Total convertido (baseado no modo de moeda selecionado)
+  const totaisConvertidos = useMemo(() => {
+    let totalReceitas = 0;
+    let totalDespesas = 0;
+    const moedaDestino = modoMoeda === 'MISTO' ? 'BRL' : modoMoeda;
 
-  const totalContasFixas = useMemo(() => {
-    return contasFixas.reduce((sum, c) => sum + getValorConvertido(c.valor, c.moeda || 'BRL'), 0);
-  }, [contasFixas, moedaVisualizacao, cotacoes]);
+    Object.entries(calcularPorMoeda).forEach(([moeda, valores]) => {
+      if (modoMoeda === 'MISTO') {
+        // Converte tudo para BRL
+        const taxa = cotacoes[moeda] || 1;
+        totalReceitas += valores.receitas * taxa;
+        totalDespesas += valores.despesas * taxa;
+      } else {
+        // Converte para a moeda selecionada
+        totalReceitas += converterParaMoeda(valores.receitas, moeda, moedaDestino);
+        totalDespesas += converterParaMoeda(valores.despesas, moeda, moedaDestino);
+      }
+    });
 
-  const totalGastosVariaveis = useMemo(() => {
-    return gastosVariaveis.reduce((sum, t) => sum + getValorConvertido(t.valor, t.moeda || 'BRL'), 0);
-  }, [gastosVariaveis, moedaVisualizacao, cotacoes]);
+    return {
+      receitas: totalReceitas,
+      despesas: totalDespesas,
+      saldo: totalReceitas - totalDespesas,
+      moeda: modoMoeda === 'MISTO' ? 'BRL' : modoMoeda
+    };
+  }, [calcularPorMoeda, cotacoes, modoMoeda, converterParaMoeda]);
 
-  const totalSaidas = totalContasFixas + totalGastosVariaveis;
-  const restante = totalEntradas - totalSaidas;
+  // Dados para gráfico (baseado no período selecionado)
+  const chartData = useMemo(() => {
+    const weeks: number[] = [];
+    const moedaDestino = modoMoeda === 'MISTO' ? 'BRL' : modoMoeda;
 
-  const totalInvestido = useMemo(() => {
-    return investimentos.reduce((sum, i) => sum + getValorConvertido(i.valor_atual, i.moeda || 'BRL'), 0);
-  }, [investimentos, moedaVisualizacao, cotacoes]);
+    // Calcula número de semanas no período
+    const diffTime = dataFim.getTime() - dataInicio.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    const numWeeks = Math.min(7, Math.ceil(diffDays / 7));
 
-  // Dados para gráfico de Gastos por Categoria
+    for (let i = numWeeks - 1; i >= 0; i--) {
+      const weekEnd = new Date(dataFim);
+      weekEnd.setDate(dataFim.getDate() - (i * 7));
+      const weekStart = new Date(weekEnd);
+      weekStart.setDate(weekEnd.getDate() - 7);
+
+      let weekTotal = 0;
+      transacoesFiltradas.forEach(t => {
+        const tDate = new Date(t.data);
+        if (tDate >= weekStart && tDate <= weekEnd) {
+          const moedaOrigem = t.moeda || 'BRL';
+          if (t.tipo === 'receita') {
+            weekTotal += converterParaMoeda(t.valor, moedaOrigem, moedaDestino);
+          }
+        }
+      });
+      weeks.push(weekTotal);
+    }
+
+    return weeks.length > 0 ? weeks : [0];
+  }, [transacoesFiltradas, modoMoeda, dataInicio, dataFim, converterParaMoeda]);
+
+  // Gastos por categoria
   const gastosPorCategoria = useMemo(() => {
     const categorias: { [key: string]: number } = {};
-    gastosVariaveis.forEach(g => {
-      const cat = g.categoria || 'Outros';
-      categorias[cat] = (categorias[cat] || 0) + getValorConvertido(g.valor, g.moeda || 'BRL');
-    });
+    const moedaDestino = modoMoeda === 'MISTO' ? 'BRL' : modoMoeda;
+
+    transacoesFiltradas
+      .filter(t => t.tipo === 'despesa')
+      .forEach(t => {
+        const moedaOrigem = t.moeda || 'BRL';
+        const cat = t.categoria || 'Outros';
+        categorias[cat] = (categorias[cat] || 0) + converterParaMoeda(t.valor, moedaOrigem, moedaDestino);
+      });
+
     return Object.entries(categorias)
-      .map(([nome, valor]) => ({
-        nome,
-        valor,
-        cor: categoriaCores[nome] || '#64748b'
-      }))
-      .sort((a, b) => b.valor - a.valor);
-  }, [gastosVariaveis, moedaVisualizacao, cotacoes]);
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 6);
+  }, [transacoesFiltradas, modoMoeda, converterParaMoeda]);
 
-  // Dados para gráfico de Entradas vs Saídas (últimos 6 meses)
-  const dadosMensais = useMemo(() => {
-    const resultado = [];
-    for (let i = 5; i >= 0; i--) {
-      let mes = mesSelecionado - i;
-      let ano = anoSelecionado;
-      if (mes < 0) {
-        mes += 12;
-        ano -= 1;
-      }
-      
-      const transacoesMes = transacoes.filter(t => {
-        const d = new Date(t.data);
-        return d.getMonth() === mes && d.getFullYear() === ano;
-      });
-      
-      // Converter valores conforme moeda de visualização
-      const entradas = transacoesMes.filter(t => t.tipo === 'receita').reduce((sum, t) => {
-        return sum + getValorConvertido(t.valor, t.moeda || 'BRL');
-      }, 0);
-      const saidas = transacoesMes.filter(t => t.tipo === 'despesa').reduce((sum, t) => {
-        return sum + getValorConvertido(t.valor, t.moeda || 'BRL');
-      }, 0);
-      
-      resultado.push({
-        mes: mesesCurtos[mes],
-        entradas,
-        saidas,
-        saldo: entradas - saidas
-      });
-    }
-    return resultado;
-  }, [transacoes, mesSelecionado, anoSelecionado, moedaVisualizacao, cotacoes]);
-
-  // Evolução do saldo acumulado
-  const evolucaoSaldo = useMemo(() => {
-    let saldoAcumulado = 0;
-    return dadosMensais.map(d => {
-      saldoAcumulado += d.saldo;
-      return { ...d, saldoAcumulado };
+  // Dados para Donut Chart (categorias)
+  const donutData = useMemo(() => {
+    return gastosPorCategoria.map(([cat, valor]) => {
+      const catInfo = CATEGORIAS[cat as keyof typeof CATEGORIAS] || CATEGORIAS['Outros'];
+      return {
+        label: cat,
+        value: valor,
+        color: catInfo.cor
+      };
     });
-  }, [dadosMensais]);
+  }, [gastosPorCategoria]);
 
-  const formatCurrencyShort = (value: number) => {
-    const moeda = moedaVisualizacao === 'TODAS' 
-      ? MOEDAS[0] 
-      : MOEDAS.find(m => m.codigo === moedaVisualizacao) || MOEDAS[0];
-    if (value >= 1000000) return `${moeda.simbolo}${(value / 1000000).toFixed(1)}M`;
-    if (value >= 1000) return `${moeda.simbolo}${(value / 1000).toFixed(1)}K`;
-    return `${moeda.simbolo}${value.toFixed(0)}`;
-  };
+  // Dados para Bar Chart (receitas vs despesas por mês)
+  const barChartData = useMemo(() => {
+    const moedaDestino = modoMoeda === 'MISTO' ? 'BRL' : modoMoeda;
+    const meses: { [key: string]: { receitas: number; despesas: number } } = {};
 
-  const resetForm = () => {
-    setFormNome('');
-    setFormValor('');
-    setFormValorNumerico(0);
-    setFormCategoria('Alimentação');
-    setFormDia('1');
-    setFormParcelas('1');
-    setFormTipo('');
-    setFormTicker('');
-    setMostrarNovaCategoria(false);
-    setNovaCategoria('');
-  };
-
-  const aplicarFiltroPeriodo = () => {
-    if (dataInicio && dataFim) {
-      setFiltroAtivo('periodo');
-      setModalFiltro(false);
+    // Pegar últimos 6 meses
+    const hoje = new Date();
+    for (let i = 5; i >= 0; i--) {
+      const mes = new Date(hoje.getFullYear(), hoje.getMonth() - i, 1);
+      const key = `${mes.getFullYear()}-${mes.getMonth()}`;
+      meses[key] = { receitas: 0, despesas: 0 };
     }
-  };
 
-  const limparFiltro = () => {
-    setFiltroAtivo('mes');
-    setDataInicio('');
-    setDataFim('');
-    setModalFiltro(false);
-  };
+    transacoes.forEach(t => {
+      const tDate = new Date(t.data);
+      const key = `${tDate.getFullYear()}-${tDate.getMonth()}`;
+      if (meses[key]) {
+        const moedaOrigem = t.moeda || 'BRL';
+        const valor = converterParaMoeda(t.valor, moedaOrigem, moedaDestino);
+        if (t.tipo === 'receita') {
+          meses[key].receitas += valor;
+        } else {
+          meses[key].despesas += valor;
+        }
+      }
+    });
 
-  // Funções do Calendário
-  const getDiasNoMes = (mes: number, ano: number) => new Date(ano, mes + 1, 0).getDate();
-  const getPrimeiroDiaSemana = (mes: number, ano: number) => new Date(ano, mes, 1).getDay();
+    return Object.values(meses);
+  }, [transacoes, modoMoeda, converterParaMoeda]);
 
-  const selecionarData = (dia: number) => {
-    const dataFormatada = `${calAno}-${String(calMes + 1).padStart(2, '0')}-${String(dia).padStart(2, '0')}`;
-    if (calendarioAtivo === 'inicio') {
-      setDataInicio(dataFormatada);
-    } else if (calendarioAtivo === 'fim') {
-      setDataFim(dataFormatada);
+  // Labels para o Bar Chart
+  const barChartLabels = useMemo(() => {
+    const labels: string[] = [];
+    const hoje = new Date();
+    for (let i = 5; i >= 0; i--) {
+      const mes = new Date(hoje.getFullYear(), hoje.getMonth() - i, 1);
+      labels.push(MESES[mes.getMonth()]);
     }
-    setCalendarioAtivo(null);
+    return labels;
+  }, []);
+
+  // Dados para Horizontal Bar Chart (top transações)
+  const topDespesas = useMemo(() => {
+    const moedaDestino = modoMoeda === 'MISTO' ? 'BRL' : modoMoeda;
+
+    return transacoesFiltradas
+      .filter(t => t.tipo === 'despesa')
+      .map(t => ({
+        label: t.descricao || t.categoria,
+        value: converterParaMoeda(t.valor, t.moeda || 'BRL', moedaDestino),
+        color: (CATEGORIAS[t.categoria as keyof typeof CATEGORIAS] || CATEGORIAS['Outros']).cor,
+        icon: (CATEGORIAS[t.categoria as keyof typeof CATEGORIAS] || CATEGORIAS['Outros']).icon
+      }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 5);
+  }, [transacoesFiltradas, modoMoeda, converterParaMoeda]);
+
+  // Dados para Sparklines (evolução diária)
+  const sparklineReceitas = useMemo(() => {
+    const moedaDestino = modoMoeda === 'MISTO' ? 'BRL' : modoMoeda;
+    const dias: number[] = [];
+    const hoje = new Date();
+
+    for (let i = 13; i >= 0; i--) {
+      const dia = new Date(hoje);
+      dia.setDate(hoje.getDate() - i);
+      const diaStr = dia.toISOString().split('T')[0];
+
+      let total = 0;
+      transacoes.forEach(t => {
+        if (t.data === diaStr && t.tipo === 'receita') {
+          total += converterParaMoeda(t.valor, t.moeda || 'BRL', moedaDestino);
+        }
+      });
+      dias.push(total);
+    }
+
+    return dias;
+  }, [transacoes, modoMoeda, converterParaMoeda]);
+
+  const sparklineDespesas = useMemo(() => {
+    const moedaDestino = modoMoeda === 'MISTO' ? 'BRL' : modoMoeda;
+    const dias: number[] = [];
+    const hoje = new Date();
+
+    for (let i = 13; i >= 0; i--) {
+      const dia = new Date(hoje);
+      dia.setDate(hoje.getDate() - i);
+      const diaStr = dia.toISOString().split('T')[0];
+
+      let total = 0;
+      transacoes.forEach(t => {
+        if (t.data === diaStr && t.tipo === 'despesa') {
+          total += converterParaMoeda(t.valor, t.moeda || 'BRL', moedaDestino);
+        }
+      });
+      dias.push(total);
+    }
+
+    return dias;
+  }, [transacoes, modoMoeda, converterParaMoeda]);
+
+  // Gauge - Taxa de economia (receitas - despesas / receitas)
+  const taxaEconomia = useMemo(() => {
+    if (totaisConvertidos.receitas === 0) return 0;
+    const economia = totaisConvertidos.receitas - totaisConvertidos.despesas;
+    return Math.max(0, economia / totaisConvertidos.receitas);
+  }, [totaisConvertidos]);
+
+  // Gauge - Gastos do orçamento (simulando um orçamento mensal)
+  const orcamentoMensal = useMemo(() => {
+    // Simular orçamento como 80% das receitas
+    const orcamento = totaisConvertidos.receitas * 0.8;
+    if (orcamento === 0) return 0;
+    return Math.min(totaisConvertidos.despesas / orcamento, 1);
+  }, [totaisConvertidos]);
+
+  // Próximas contas a pagar
+  const proximasContas = useMemo(() => {
+    const hoje = new Date();
+    return contasFixas
+      .filter(c => !c.pago)
+      .sort((a, b) => a.dia_vencimento - b.dia_vencimento)
+      .slice(0, 4);
+  }, [contasFixas]);
+
+  // Formatar moeda
+  const formatCurrency = (value: number, moeda: string = 'BRL') => {
+    const m = MOEDAS.find(m => m.codigo === moeda) || MOEDAS[0];
+    return value.toLocaleString(m.locale, { style: 'currency', currency: m.codigo });
   };
 
-  const navegarMes = (direcao: number) => {
-    let novoMes = calMes + direcao;
-    let novoAno = calAno;
-    if (novoMes > 11) { novoMes = 0; novoAno++; }
-    if (novoMes < 0) { novoMes = 11; novoAno--; }
-    setCalMes(novoMes);
-    setCalAno(novoAno);
+  // Moeda para exibição (baseado no modo)
+  const moedaExibicao = modoMoeda === 'MISTO' ? 'BRL' : modoMoeda;
+
+  // Calcular porcentagem de gastos
+  const calcularPorcentagem = (valor: number) => {
+    if (totaisConvertidos.despesas === 0) return 0;
+    return Math.round((valor / totaisConvertidos.despesas) * 100);
   };
 
-  const formatarDataExibicao = (data: string) => {
-    if (!data) return '';
-    const [ano, mes, dia] = data.split('-');
-    return `${dia}/${mes}/${ano}`;
+  // Formatar período para exibição
+  const formatarPeriodo = () => {
+    const inicio = dataInicio.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
+    const fim = dataFim.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
+    return `${inicio} - ${fim}`;
   };
 
-  // Componente Calendário
-  const Calendario = () => {
-    const diasNoMes = getDiasNoMes(calMes, calAno);
-    const primeiroDia = getPrimeiroDiaSemana(calMes, calAno);
-    const diasSemana = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
-    const dias = [];
+  // Gerar dias do calendário
+  const gerarDiasCalendario = () => {
+    const primeiroDia = new Date(calendarioAno, calendarioMes, 1);
+    const ultimoDia = new Date(calendarioAno, calendarioMes + 1, 0);
+    const diasNoMes = ultimoDia.getDate();
+    const diaSemanaInicio = primeiroDia.getDay();
 
-    // Dias vazios antes do primeiro dia
-    for (let i = 0; i < primeiroDia; i++) {
-      dias.push(<View key={`empty-${i}`} style={styles.calDia} />);
+    const dias: (number | null)[] = [];
+
+    // Dias vazios no início
+    for (let i = 0; i < diaSemanaInicio; i++) {
+      dias.push(null);
     }
 
     // Dias do mês
-    for (let dia = 1; dia <= diasNoMes; dia++) {
-      const dataAtual = `${calAno}-${String(calMes + 1).padStart(2, '0')}-${String(dia).padStart(2, '0')}`;
-      const isInicio = dataInicio === dataAtual;
-      const isFim = dataFim === dataAtual;
-      const isHoje = new Date().toISOString().split('T')[0] === dataAtual;
-
-      dias.push(
-        <TouchableOpacity
-          key={dia}
-          style={[
-            styles.calDia,
-            isInicio && styles.calDiaInicio,
-            isFim && styles.calDiaFim,
-            isHoje && !isInicio && !isFim && styles.calDiaHoje,
-          ]}
-          onPress={() => selecionarData(dia)}
-        >
-          <Text style={[
-            styles.calDiaText,
-            (isInicio || isFim) && styles.calDiaTextSelected,
-          ]}>
-            {dia}
-          </Text>
-        </TouchableOpacity>
-      );
+    for (let i = 1; i <= diasNoMes; i++) {
+      dias.push(i);
     }
 
-    return (
-      <View style={styles.calendario}>
-        {/* Header do Calendário */}
-        <View style={styles.calHeader}>
-          <TouchableOpacity onPress={() => navegarMes(-1)} style={styles.calNavBtn}>
-            <Ionicons name="chevron-back" size={20} color={colors.primary} />
-          </TouchableOpacity>
-          <Text style={styles.calMesAno}>{meses[calMes]} {calAno}</Text>
-          <TouchableOpacity onPress={() => navegarMes(1)} style={styles.calNavBtn}>
-            <Ionicons name="chevron-forward" size={20} color={colors.primary} />
-          </TouchableOpacity>
-        </View>
-
-        {/* Dias da Semana */}
-        <View style={styles.calSemana}>
-          {diasSemana.map(d => (
-            <Text key={d} style={styles.calSemanaText}>{d}</Text>
-          ))}
-        </View>
-
-        {/* Grid de Dias */}
-        <View style={styles.calGrid}>
-          {dias}
-        </View>
-      </View>
-    );
+    return dias;
   };
 
-  // Criar Entrada (Receita)
-  const handleAddEntrada = async () => {
-    if (!formNome || formValorNumerico <= 0) return;
-    try {
-      const token = await AsyncStorage.getItem('token');
-      const response = await fetch(`${API_URL}/transactions/`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({
-          descricao: formNome,
-          valor: formValorNumerico,
-          tipo: 'receita',
-          categoria: formCategoria,
-          data: `${anoSelecionado}-${String(mesSelecionado + 1).padStart(2, '0')}-15`,
-          moeda: moedaSelecionada.codigo
-        }),
-      });
-      if (response.ok) {
-        setModalEntrada(false);
-        resetForm();
-        fetchData();
+  // Selecionar data no calendário
+  const selecionarData = (dia: number) => {
+    const data = new Date(calendarioAno, calendarioMes, dia);
+    if (selecionandoInicio) {
+      setDataInicio(data);
+      setSelecionandoInicio(false);
+    } else {
+      if (data >= dataInicio) {
+        setDataFim(data);
+      } else {
+        setDataInicio(data);
+        setDataFim(dataInicio);
       }
-    } catch (error) {
-      console.log('Erro ao criar entrada');
+      setSelecionandoInicio(true);
+      setShowCalendar(false);
     }
   };
 
-  // Criar Conta Fixa
-  const handleAddContaFixa = async () => {
-    if (!formNome || formValorNumerico <= 0) return;
-    try {
-      const token = await AsyncStorage.getItem('token');
-      const response = await fetch(`${API_URL}/contas-fixas/`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({
-          nome: formNome,
-          valor: formValorNumerico,
-          dia_vencimento: parseInt(formDia),
-          categoria: formCategoria,
-          mes_referencia: mesSelecionado + 1,
-          ano_referencia: anoSelecionado,
-          parcela_atual: 1,
-          parcela_total: parseInt(formParcelas),
-          moeda: moedaSelecionada.codigo
-        }),
-      });
-      if (response.ok) {
-        setModalContaFixa(false);
-        resetForm();
-        fetchData();
-      }
-    } catch (error) {
-      console.log('Erro ao criar conta fixa');
-    }
+  // Verificar se data está no range selecionado
+  const estaNoRange = (dia: number) => {
+    const data = new Date(calendarioAno, calendarioMes, dia);
+    return data >= dataInicio && data <= dataFim;
   };
 
-  // Toggle Pago
-  const handleTogglePago = async (id: number) => {
-    try {
-      const token = await AsyncStorage.getItem('token');
-      await fetch(`${API_URL}/contas-fixas/${id}/toggle-pago`, {
-        method: 'PATCH',
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      fetchData();
-    } catch (error) {
-      console.log('Erro ao atualizar');
-    }
+  // Verificar se é data início ou fim
+  const eDataInicio = (dia: number) => {
+    const data = new Date(calendarioAno, calendarioMes, dia);
+    return data.toDateString() === dataInicio.toDateString();
   };
 
-  // Criar Gasto Variável
-  const handleAddGasto = async () => {
-    if (!formNome || formValorNumerico <= 0) return;
-    try {
-      const token = await AsyncStorage.getItem('token');
-      const response = await fetch(`${API_URL}/transactions/`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({
-          descricao: formNome,
-          valor: formValorNumerico,
-          tipo: 'despesa',
-          categoria: formCategoria,
-          data: `${anoSelecionado}-${String(mesSelecionado + 1).padStart(2, '0')}-${String(formDia).padStart(2, '0')}`,
-          moeda: moedaSelecionada.codigo
-        }),
-      });
-      if (response.ok) {
-        setModalGasto(false);
-        resetForm();
-        fetchData();
-      }
-    } catch (error) {
-      console.log('Erro ao criar gasto');
-    }
+  const eDataFim = (dia: number) => {
+    const data = new Date(calendarioAno, calendarioMes, dia);
+    return data.toDateString() === dataFim.toDateString();
   };
 
-  // Criar Meta
-  const handleAddMeta = async () => {
-    if (!formNome || formValorNumerico <= 0) return;
-    try {
-      const token = await AsyncStorage.getItem('token');
-      const response = await fetch(`${API_URL}/metas/`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({
-          nome: formNome,
-          valor_alvo: formValorNumerico,
-          categoria: formCategoria,
-          moeda: moedaSelecionada.codigo
-        }),
-      });
-      if (response.ok) {
-        setModalMeta(false);
-        resetForm();
-        fetchData();
-      }
-    } catch (error) {
-      console.log('Erro ao criar meta');
-    }
-  };
+  // Presets de período
+  const aplicarPreset = (preset: string) => {
+    const hoje = new Date();
+    let inicio = new Date();
 
-  // Criar Investimento
-  const handleAddInvestimento = async () => {
-    if (!formNome || formValorNumerico <= 0 || !formTipo) return;
-    try {
-      const token = await AsyncStorage.getItem('token');
-      const response = await fetch(`${API_URL}/investimentos/`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({
-          nome: formNome,
-          tipo: formTipo,
-          valor_investido: formValorNumerico,
-          valor_atual: formValorNumerico,
-          ticker: formTicker,
-          moeda: moedaSelecionada.codigo
-        }),
-      });
-      if (response.ok) {
-        setModalInvestimento(false);
-        resetForm();
-        fetchData();
-      }
-    } catch (error) {
-      console.log('Erro ao criar investimento');
-    }
-  };
-
-  // Gráfico Donut - Restante para Gastar
-  const DonutChart = ({ disponivel, total }: { disponivel: number; total: number }) => {
-    const size = 160;
-    const strokeWidth = 15;
-    const radius = (size - strokeWidth) / 2;
-    const circumference = radius * 2 * Math.PI;
-    const percentage = total > 0 ? Math.max(0, Math.min(100, (disponivel / total) * 100)) : 0;
-    const strokeDashoffset = circumference - (percentage / 100) * circumference;
-
-    const valorFormatado = moedaVisualizacao === 'TODAS'
-      ? 'Selecione moeda'
-      : formatCurrencyWithCode(disponivel, moedaVisualizacao);
-
-    return (
-      <View style={{ alignItems: 'center' }}>
-        <Svg width={size} height={size}>
-          <G rotation="-90" origin={`${size / 2}, ${size / 2}`}>
-            <Circle cx={size / 2} cy={size / 2} r={radius} stroke={colors.border} strokeWidth={strokeWidth} fill="none" />
-            <Circle cx={size / 2} cy={size / 2} r={radius} stroke={colors.success} strokeWidth={strokeWidth} fill="none" strokeDasharray={`${circumference}`} strokeDashoffset={strokeDashoffset} strokeLinecap="round" />
-          </G>
-        </Svg>
-        <View style={styles.donutCenter}>
-          <Text style={styles.donutLabel}>Disponível</Text>
-          <Text style={[styles.donutValue, { color: disponivel >= 0 ? colors.success : colors.danger, fontSize: moedaVisualizacao === 'TODAS' ? 12 : 20 }]}>{valorFormatado}</Text>
-        </View>
-      </View>
-    );
-  };
-
-  // Gráfico Donut - Gastos por Categoria
-  const CategoryDonutChart = ({ data }: { data: { nome: string; valor: number; cor: string }[] }) => {
-    const size = 180;
-    const strokeWidth = 25;
-    const radius = (size - strokeWidth) / 2;
-    const circumference = radius * 2 * Math.PI;
-    const total = data.reduce((sum, d) => sum + d.valor, 0);
-
-    if (total === 0) {
-      return (
-        <View style={{ alignItems: 'center', padding: 20 }}>
-          <Text style={styles.emptyText}>Nenhum gasto registrado</Text>
-        </View>
-      );
+    switch (preset) {
+      case 'hoje':
+        inicio = hoje;
+        break;
+      case 'semana':
+        inicio.setDate(hoje.getDate() - 7);
+        break;
+      case 'mes':
+        inicio = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
+        break;
+      case 'trimestre':
+        inicio.setMonth(hoje.getMonth() - 3);
+        break;
+      case 'ano':
+        inicio = new Date(hoje.getFullYear(), 0, 1);
+        break;
     }
 
-    let accumulatedPercentage = 0;
-
-    return (
-      <View style={{ alignItems: 'center' }}>
-        <Svg width={size} height={size}>
-          <G rotation="-90" origin={`${size / 2}, ${size / 2}`}>
-            {data.map((item, index) => {
-              const percentage = (item.valor / total) * 100;
-              const strokeDasharray = `${(percentage / 100) * circumference} ${circumference}`;
-              const rotation = (accumulatedPercentage / 100) * 360;
-              accumulatedPercentage += percentage;
-
-              return (
-                <Circle
-                  key={index}
-                  cx={size / 2}
-                  cy={size / 2}
-                  r={radius}
-                  stroke={item.cor}
-                  strokeWidth={strokeWidth}
-                  fill="none"
-                  strokeDasharray={strokeDasharray}
-                  rotation={rotation}
-                  origin={`${size / 2}, ${size / 2}`}
-                />
-              );
-            })}
-          </G>
-        </Svg>
-        <View style={styles.donutCenter}>
-          <Text style={styles.donutLabel}>Total</Text>
-          <Text style={[styles.donutValue, { color: colors.danger, fontSize: moedaVisualizacao === 'TODAS' ? 12 : 16 }]}>
-            {moedaVisualizacao === 'TODAS' ? 'Selecione moeda' : formatCurrencyWithCode(total, moedaVisualizacao)}
-          </Text>
-        </View>
-
-        {/* Legenda */}
-        <View style={styles.legendContainer}>
-          {data.slice(0, 5).map((item, index) => (
-            <View key={index} style={styles.legendItem}>
-              <View style={[styles.legendDot, { backgroundColor: item.cor }]} />
-              <Text style={styles.legendText}>{item.nome}</Text>
-              <Text style={styles.legendValue}>{((item.valor / total) * 100).toFixed(0)}%</Text>
-            </View>
-          ))}
-        </View>
-      </View>
-    );
+    setDataInicio(inicio);
+    setDataFim(hoje);
+    setShowCalendar(false);
   };
 
-  // Gráfico de Barras - Entradas vs Saídas
-  const BarChart = ({ data }: { data: { mes: string; entradas: number; saidas: number }[] }) => {
-    const width = isWeb ? 380 : screenWidth - 80;
-    const height = 200;
-    const padding = { top: 20, right: 20, bottom: 30, left: 50 };
-    const chartWidth = width - padding.left - padding.right;
-    const chartHeight = height - padding.top - padding.bottom;
-
-    const maxValue = Math.max(...data.flatMap(d => [d.entradas, d.saidas]), 1);
-    const barWidth = chartWidth / data.length / 2.5;
-    const barGap = barWidth * 0.3;
-
-    return (
-      <Svg width={width} height={height}>
-        {/* Grid lines */}
-        {[0, 0.25, 0.5, 0.75, 1].map((ratio, i) => (
-          <G key={i}>
-            <Line
-              x1={padding.left}
-              y1={padding.top + chartHeight * (1 - ratio)}
-              x2={width - padding.right}
-              y2={padding.top + chartHeight * (1 - ratio)}
-              stroke={colors.border}
-              strokeWidth={1}
-            />
-            <SvgText
-              x={padding.left - 5}
-              y={padding.top + chartHeight * (1 - ratio) + 4}
-              fontSize={10}
-              fill={colors.textMuted}
-              textAnchor="end"
-            >
-              {formatCurrencyShort(maxValue * ratio)}
-            </SvgText>
-          </G>
-        ))}
-
-        {/* Bars */}
-        {data.map((d, i) => {
-          const groupX = padding.left + (chartWidth / data.length) * i + (chartWidth / data.length - barWidth * 2 - barGap) / 2;
-          const entradaHeight = (d.entradas / maxValue) * chartHeight;
-          const saidaHeight = (d.saidas / maxValue) * chartHeight;
-
-          return (
-            <G key={i}>
-              {/* Entrada */}
-              <Rect
-                x={groupX}
-                y={padding.top + chartHeight - entradaHeight}
-                width={barWidth}
-                height={entradaHeight}
-                fill={colors.success}
-                rx={4}
-              />
-              {/* Saída */}
-              <Rect
-                x={groupX + barWidth + barGap}
-                y={padding.top + chartHeight - saidaHeight}
-                width={barWidth}
-                height={saidaHeight}
-                fill={colors.danger}
-                rx={4}
-              />
-              {/* Label mês */}
-              <SvgText
-                x={groupX + barWidth + barGap / 2}
-                y={height - 10}
-                fontSize={11}
-                fill={colors.textSecondary}
-                textAnchor="middle"
-              >
-                {d.mes}
-              </SvgText>
-            </G>
-          );
-        })}
-      </Svg>
-    );
-  };
-
-  // Gráfico de Linha - Evolução do Saldo
-  const LineChart = ({ data }: { data: { mes: string; saldoAcumulado: number }[] }) => {
-    const width = isWeb ? 380 : screenWidth - 80;
-    const height = 200;
-    const padding = { top: 20, right: 20, bottom: 30, left: 50 };
-    const chartWidth = width - padding.left - padding.right;
-    const chartHeight = height - padding.top - padding.bottom;
-
-    const values = data.map(d => d.saldoAcumulado);
-    const minValue = Math.min(...values, 0);
-    const maxValue = Math.max(...values, 1);
-    const range = maxValue - minValue || 1;
-
-    const points = data.map((d, i) => {
-      const x = padding.left + (chartWidth / (data.length - 1)) * i;
-      const y = padding.top + chartHeight - ((d.saldoAcumulado - minValue) / range) * chartHeight;
-      return { x, y, value: d.saldoAcumulado };
-    });
-
-    const pathD = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
-
-    // Área sob a linha
-    const areaD = `${pathD} L ${points[points.length - 1].x} ${padding.top + chartHeight} L ${points[0].x} ${padding.top + chartHeight} Z`;
-
-    return (
-      <Svg width={width} height={height}>
-        {/* Grid lines */}
-        {[0, 0.25, 0.5, 0.75, 1].map((ratio, i) => {
-          const value = minValue + range * ratio;
-          return (
-            <G key={i}>
-              <Line
-                x1={padding.left}
-                y1={padding.top + chartHeight * (1 - ratio)}
-                x2={width - padding.right}
-                y2={padding.top + chartHeight * (1 - ratio)}
-                stroke={colors.border}
-                strokeWidth={1}
-              />
-              <SvgText
-                x={padding.left - 5}
-                y={padding.top + chartHeight * (1 - ratio) + 4}
-                fontSize={10}
-                fill={colors.textMuted}
-                textAnchor="end"
-              >
-                {formatCurrencyShort(value)}
-              </SvgText>
-            </G>
-          );
-        })}
-
-        {/* Area fill */}
-        <Path d={areaD} fill={colors.infoLight} />
-
-        {/* Line */}
-        <Path d={pathD} stroke={colors.info} strokeWidth={3} fill="none" strokeLinecap="round" strokeLinejoin="round" />
-
-        {/* Points */}
-        {points.map((p, i) => (
-          <G key={i}>
-            <Circle cx={p.x} cy={p.y} r={5} fill={colors.card} stroke={colors.info} strokeWidth={2} />
-            <SvgText
-              x={p.x}
-              y={height - 10}
-              fontSize={11}
-              fill={colors.textSecondary}
-              textAnchor="middle"
-            >
-              {data[i].mes}
-            </SvgText>
-          </G>
-        ))}
-      </Svg>
-    );
-  };
-
-  // Componente de seleção de categoria
-  const CategoriaSelector = () => (
-    <View>
-      <Text style={styles.inputLabel}>Categoria</Text>
-      <View style={styles.categoriasContainer}>
-        {todasCategorias.map((cat) => (
-          <TouchableOpacity
-            key={cat}
-            style={[
-              styles.categoriaChip,
-              formCategoria === cat && styles.categoriaChipActive
-            ]}
-            onPress={() => setFormCategoria(cat)}
-          >
-            <Text style={[
-              styles.categoriaChipText,
-              formCategoria === cat && styles.categoriaChipTextActive
-            ]}>
-              {cat}
-            </Text>
-          </TouchableOpacity>
-        ))}
-        <TouchableOpacity
-          style={[styles.categoriaChip, styles.categoriaChipAdd]}
-          onPress={() => setMostrarNovaCategoria(true)}
-        >
-          <Ionicons name="add" size={16} color={colors.primary} />
-          <Text style={styles.categoriaChipAddText}>Nova</Text>
-        </TouchableOpacity>
-      </View>
-
-      {mostrarNovaCategoria && (
-        <View style={styles.novaCategoriaContainer}>
-          <TextInput
-            style={[styles.input, { flex: 1, marginTop: 0 }]}
-            value={novaCategoria}
-            onChangeText={setNovaCategoria}
-            placeholder="Nome da categoria"
-            placeholderTextColor={colors.textMuted}
-            autoFocus
-          />
-          <TouchableOpacity style={styles.novaCategoriaBtn} onPress={adicionarCategoria}>
-            <Ionicons name="checkmark" size={20} color="#fff" />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.novaCategoriaBtn, { backgroundColor: colors.textMuted, marginLeft: 8 }]}
-            onPress={() => { setMostrarNovaCategoria(false); setNovaCategoria(''); }}
-          >
-            <Ionicons name="close" size={20} color="#fff" />
-          </TouchableOpacity>
-        </View>
-      )}
-    </View>
-  );
-
-  // Card Header
-  const CardHeader = ({ title, onAdd, onConfig, color = '#166534', icon }: { title: string; onAdd?: () => void; onConfig?: () => void; color?: string; icon?: any }) => (
-    <View style={[styles.cardHeader, { backgroundColor: color }]}>
-      <View style={styles.cardHeaderLeft}>
-        {icon && <Image source={icon} style={styles.cardIcon} />}
-        <Text style={styles.cardHeaderText}>{title}</Text>
-      </View>
-      <View style={{ flexDirection: 'row', gap: 8 }}>
-        {onConfig && (
-          <TouchableOpacity onPress={onConfig} style={styles.configBtn}>
-            <Ionicons name="settings-outline" size={18} color="#fff" />
-          </TouchableOpacity>
-        )}
-        {onAdd && (
-          <TouchableOpacity onPress={onAdd} style={styles.addBtn}>
-            <Ionicons name="add" size={20} color="#fff" />
-          </TouchableOpacity>
-        )}
-      </View>
-    </View>
-  );
+  const styles = createStyles(colors, isWeb);
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <ScrollView style={[styles.scrollView, { backgroundColor: colors.background }]} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#10b981" />}>
-        
-        {/* Header */}
-        <View style={styles.header}>
-          <View style={styles.logoContainer}>
-            <Image source={icons.wallet} style={styles.logoIcon} />
-            <Text style={styles.logoText}>Finex</Text>
-          </View>
-        </View>
+    <View style={styles.container}>
+      <ScrollView
+        style={styles.scrollView}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.mainContent}>
+          {/* Coluna Principal */}
+          <View style={styles.mainColumn}>
+            {/* Header Overview */}
+            <View style={styles.overviewHeader}>
+              <Text style={styles.overviewTitle}>Overview</Text>
+              <View style={styles.headerControls}>
+                {/* Seletor de Período/Calendário */}
+                <TouchableOpacity style={styles.datePickerBtn} onPress={() => setShowCalendar(true)}>
+                  <Ionicons name="calendar-outline" size={18} color={colors.primary} />
+                  <Text style={styles.datePickerText}>{formatarPeriodo()}</Text>
+                  <Ionicons name="chevron-down" size={16} color={colors.textSecondary} />
+                </TouchableOpacity>
 
-        {/* Navegação por Mês + Filtro de Período */}
-        <View style={styles.filterContainer}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.monthsNav} contentContainerStyle={styles.monthsNavContent}>
-            {mesesCurtos.map((mes, index) => (
-              <TouchableOpacity
-                key={index}
-                style={[styles.monthTab, filtroAtivo === 'mes' && mesSelecionado === index && styles.monthTabActive]}
-                onPress={() => { setFiltroAtivo('mes'); setMesSelecionado(index); }}
-              >
-                <Text style={[styles.monthTabText, filtroAtivo === 'mes' && mesSelecionado === index && styles.monthTabTextActive]}>{mes}</Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-          
-          {/* Botão Filtro Moeda */}
-          <TouchableOpacity
-            style={[styles.filterBtn, styles.moedaFilterBtn]}
-            onPress={() => setMostrarSeletorMoedaVis(true)}
-          >
-            <Ionicons name="cash-outline" size={18} color={colors.primary} />
-            <Text style={styles.moedaFilterBtnText}>
-              {moedaVisualizacao === 'TODAS' ? 'Todas' : moedaVisualizacao}
-            </Text>
-            <Ionicons name="chevron-down" size={14} color={colors.primary} />
-          </TouchableOpacity>
-          
-          {/* Botão Filtro Período */}
-          <TouchableOpacity
-            style={[styles.filterBtn, filtroAtivo === 'periodo' && styles.filterBtnActive]}
-            onPress={() => setModalFiltro(true)}
-          >
-            <Ionicons name="calendar-outline" size={18} color={filtroAtivo === 'periodo' ? '#fff' : colors.textSecondary} />
-            <Text style={[styles.filterBtnText, filtroAtivo === 'periodo' && styles.filterBtnTextActive]}>
-              {filtroAtivo === 'periodo' ? `${dataInicio} - ${dataFim}` : 'Período'}
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Grid Principal */}
-        <View style={styles.mainGrid}>
-          
-          {/* Card Entradas */}
-          <View style={styles.card}>
-            <CardHeader title="Entradas" onAdd={() => setModalEntrada(true)} icon={icons.banknotes} />
-            <View style={styles.cardBody}>
-              <View style={styles.tableHeader}>
-                <Text style={[styles.tableHeaderText, { flex: 2 }]}>NOME</Text>
-                <Text style={[styles.tableHeaderText, { flex: 1 }]}>VALOR</Text>
-              </View>
-              {entradas.length > 0 ? entradas.slice(0, 5).map((e, i) => (
-                <View key={i} style={styles.tableRow}>
-                  <Text style={[styles.tableCell, { flex: 2 }]}>{e.descricao}</Text>
-                  <Text style={[styles.tableCell, { flex: 1, color: colors.success }]}>{formatValorExibicao(e.valor, e.moeda || 'BRL')}</Text>
-                </View>
-              )) : <Text style={styles.emptyText}>Nenhuma entrada</Text>}
-              <View style={styles.totalRow}>
-                <Text style={styles.totalLabel}>Total</Text>
-                <Text style={styles.totalValue}>{moedaVisualizacao === 'TODAS' ? '(múltiplas moedas)' : formatCurrencyWithCode(totalEntradas, moedaVisualizacao)}</Text>
+                {/* Seletor de Moeda */}
+                <TouchableOpacity style={styles.moedaSelectorBtn} onPress={() => setShowMoedaSelector(true)}>
+                  {modoMoeda === 'MISTO' ? (
+                    <Ionicons name="layers-outline" size={18} color={colors.primary} />
+                  ) : (
+                    <Text style={styles.moedaFlag}>{MOEDAS.find(m => m.codigo === modoMoeda)?.bandeira}</Text>
+                  )}
+                  <Text style={styles.moedaSelectorText}>
+                    {modoMoeda === 'MISTO' ? 'Misto' : modoMoeda}
+                  </Text>
+                  <Ionicons name="chevron-down" size={16} color={colors.textSecondary} />
+                </TouchableOpacity>
               </View>
             </View>
-          </View>
 
-          {/* Card Restante para Gastar */}
-          <View style={styles.card}>
-            <View style={[styles.cardHeader, { backgroundColor: '#166534' }]}>
-              <View style={styles.cardHeaderLeft}>
-                <Image source={icons.calculator} style={styles.cardIcon} />
-                <Text style={styles.cardHeaderText}>Restante para Gastar</Text>
-              </View>
-            </View>
-            <View style={[styles.cardBody, { alignItems: 'center', paddingVertical: 20 }]}>
-              <DonutChart disponivel={restante} total={totalEntradas} />
-              <View style={styles.summaryRow}>
-                <View style={styles.summaryItem}>
-                  <Text style={styles.summaryLabel}>Total de Entradas →</Text>
-                  <Text style={[styles.summaryValue, { color: colors.success }]}>{moedaVisualizacao === 'TODAS' ? 'Selecione moeda' : formatCurrencyWithCode(totalEntradas, moedaVisualizacao)}</Text>
-                  <Text style={styles.summaryPercent}>↑ 12%</Text>
+            {/* Métricas Principais */}
+            <View style={styles.metricsRow}>
+              <View style={styles.metricCard}>
+                <View style={styles.metricHeader}>
+                  <Text style={styles.metricLabel}>Receitas</Text>
+                  <Text style={styles.metricMoeda}>{moedaExibicao}</Text>
                 </View>
-                <View style={styles.summaryItem}>
-                  <Text style={styles.summaryLabel}>Total de Saídas →</Text>
-                  <Text style={[styles.summaryValue, { color: colors.danger }]}>{moedaVisualizacao === 'TODAS' ? 'Selecione moeda' : formatCurrencyWithCode(totalSaidas, moedaVisualizacao)}</Text>
-                  <Text style={[styles.summaryPercent, { color: colors.danger }]}>↓ 5%</Text>
+                <Text style={styles.metricValue}>{formatCurrency(totaisConvertidos.receitas, moedaExibicao)}</Text>
+                <View style={[styles.metricBadge, { backgroundColor: colors.successLight }]}>
+                  <Ionicons name="arrow-up" size={12} color={colors.success} />
+                  <Text style={[styles.metricChange, { color: colors.success }]}>Entradas</Text>
+                </View>
+              </View>
+
+              <View style={styles.metricCard}>
+                <View style={styles.metricHeader}>
+                  <Text style={styles.metricLabel}>Despesas</Text>
+                  <Text style={styles.metricMoeda}>{moedaExibicao}</Text>
+                </View>
+                <Text style={styles.metricValue}>{formatCurrency(totaisConvertidos.despesas, moedaExibicao)}</Text>
+                <View style={[styles.metricBadge, { backgroundColor: colors.dangerLight }]}>
+                  <Ionicons name="arrow-down" size={12} color={colors.danger} />
+                  <Text style={[styles.metricChange, { color: colors.danger }]}>Saídas</Text>
+                </View>
+              </View>
+
+              <View style={styles.metricCard}>
+                <View style={styles.metricHeader}>
+                  <Text style={styles.metricLabel}>Saldo</Text>
+                  <Text style={styles.metricMoeda}>{moedaExibicao}</Text>
+                </View>
+                <Text style={[styles.metricValue, { color: totaisConvertidos.saldo >= 0 ? colors.success : colors.danger }]}>
+                  {formatCurrency(totaisConvertidos.saldo, moedaExibicao)}
+                </Text>
+                <View style={[styles.metricBadge, { backgroundColor: totaisConvertidos.saldo >= 0 ? colors.successLight : colors.dangerLight }]}>
+                  <Ionicons name={totaisConvertidos.saldo >= 0 ? 'trending-up' : 'trending-down'} size={12} color={totaisConvertidos.saldo >= 0 ? colors.success : colors.danger} />
+                  <Text style={[styles.metricChange, { color: totaisConvertidos.saldo >= 0 ? colors.success : colors.danger }]}>Balanço</Text>
                 </View>
               </View>
             </View>
-          </View>
 
-          {/* Card Contas Fixas */}
-          <View style={styles.card}>
-            <CardHeader title="Contas Fixas" onAdd={() => setModalContaFixa(true)} icon={icons.creditCard} />
-            <View style={styles.cardBody}>
-              <View style={styles.tableHeader}>
-                <Text style={[styles.tableHeaderText, { width: 40 }]}>PAGO</Text>
-                <Text style={[styles.tableHeaderText, { flex: 2 }]}>NOME</Text>
-                <Text style={[styles.tableHeaderText, { flex: 1 }]}>PARC.</Text>
-                <Text style={[styles.tableHeaderText, { flex: 1 }]}>VALOR</Text>
-              </View>
-              {contasFixas.length > 0 ? contasFixas.slice(0, 5).map((c, i) => (
-                <View key={i} style={styles.tableRow}>
-                  <TouchableOpacity style={{ width: 40 }} onPress={() => handleTogglePago(c.id)}>
-                    <Ionicons name={c.pago ? "checkbox" : "square-outline"} size={22} color={c.pago ? colors.success : colors.border} />
+            {/* Card Upgrade */}
+            <View style={styles.upgradeCard}>
+              <View style={styles.upgradeContent}>
+                <View style={styles.upgradeTextContainer}>
+                  <Text style={styles.upgradeTitle}>Melhore seu plano para uma</Text>
+                  <Text style={styles.upgradeHighlight}>Experiência completa</Text>
+                  <Text style={styles.upgradeDesc}>Desbloqueie recursos avançados de análise financeira</Text>
+                  <TouchableOpacity style={styles.upgradeBtn}>
+                    <Ionicons name="lock-open" size={16} color="#0f2132" />
+                    <Text style={styles.upgradeBtnText}>Upgrade Agora</Text>
                   </TouchableOpacity>
-                  <Text style={[styles.tableCell, { flex: 2 }]}>{c.nome}</Text>
-                  <Text style={[styles.tableCell, { flex: 1 }]}>{c.parcela_atual}/{c.parcela_total}</Text>
-                  <Text style={[styles.tableCell, { flex: 1 }]}>{formatValorExibicao(c.valor, c.moeda || 'BRL')}</Text>
                 </View>
-              )) : <Text style={styles.emptyText}>Nenhuma conta fixa</Text>}
-            </View>
-          </View>
-
-          {/* Card Gastos Variáveis */}
-          <View style={[styles.card, styles.cardWide]}>
-            <CardHeader title="Gastos Variáveis" onAdd={() => setModalGasto(true)} onConfig={() => setModalGerenciarCategorias(true)} icon={icons.coinBag} />
-            <View style={styles.cardBody}>
-              <View style={styles.tableHeader}>
-                <Text style={[styles.tableHeaderText, { flex: 1 }]}>CATEGORIA</Text>
-                <Text style={[styles.tableHeaderText, { flex: 1 }]}>VALOR</Text>
-                <Text style={[styles.tableHeaderText, { flex: 1 }]}>DATA</Text>
-                <Text style={[styles.tableHeaderText, { flex: 2 }]}>OBS</Text>
-              </View>
-              {gastosVariaveis.length > 0 ? gastosVariaveis.slice(0, 6).map((g, i) => (
-                <View key={i} style={styles.tableRow}>
-                  <Text style={[styles.tableCell, { flex: 1 }]}>{g.categoria}</Text>
-                  <Text style={[styles.tableCell, { flex: 1, color: colors.danger }]}>{formatValorExibicao(g.valor, g.moeda || 'BRL')}</Text>
-                  <Text style={[styles.tableCell, { flex: 1 }]}>{new Date(g.data).toLocaleDateString('pt-BR')}</Text>
-                  <Text style={[styles.tableCell, { flex: 2 }]}>{g.descricao}</Text>
-                </View>
-              )) : <Text style={styles.emptyText}>Nenhum gasto variável</Text>}
-            </View>
-          </View>
-
-          {/* Card Investimentos */}
-          <View style={styles.card}>
-            <CardHeader title="Investimentos" onAdd={() => setModalInvestimento(true)} icon={icons.bank} />
-            <View style={styles.cardBody}>
-              <View style={styles.tableHeader}>
-                <Text style={[styles.tableHeaderText, { flex: 2 }]}>NOME</Text>
-                <Text style={[styles.tableHeaderText, { flex: 1 }]}>VALOR</Text>
-              </View>
-              {investimentos.length > 0 ? investimentos.slice(0, 4).map((inv, i) => (
-                <View key={i} style={styles.tableRow}>
-                  <Text style={[styles.tableCell, { flex: 2 }]}>{inv.nome}</Text>
-                  <Text style={[styles.tableCell, { flex: 1, color: colors.info }]}>{formatValorExibicao(inv.valor_atual, inv.moeda || 'BRL')}</Text>
-                </View>
-              )) : <Text style={styles.emptyText}>Nenhum investimento</Text>}
-              <View style={styles.totalRow}>
-                <Text style={styles.totalLabel}>Total</Text>
-                <Text style={[styles.totalValue, { color: colors.info }]}>{moedaVisualizacao === 'TODAS' ? '(múltiplas moedas)' : formatCurrencyWithCode(totalInvestido, moedaVisualizacao)}</Text>
-              </View>
-            </View>
-          </View>
-
-          {/* =========== NOVOS GRÁFICOS =========== */}
-
-          {/* Gráfico 1: Gastos por Categoria */}
-          <View style={styles.card}>
-            <CardHeader title="Gastos por Categoria" color="#8b5cf6" icon={icons.coin} />
-            <View style={[styles.cardBody, { alignItems: 'center' }]}>
-              <CategoryDonutChart data={gastosPorCategoria} />
-            </View>
-          </View>
-
-          {/* Gráfico 2: Entradas vs Saídas (6 meses) */}
-          <View style={[styles.card, styles.cardWide]}>
-            <CardHeader title="Entradas vs Saídas (6 meses)" color="#0891b2" icon={icons.barChart} />
-            <View style={[styles.cardBody, { alignItems: 'center' }]}>
-              <BarChart data={dadosMensais} />
-              <View style={styles.chartLegend}>
-                <View style={styles.chartLegendItem}>
-                  <View style={[styles.legendDot, { backgroundColor: colors.success }]} />
-                  <Text style={styles.legendText}>Entradas</Text>
-                </View>
-                <View style={styles.chartLegendItem}>
-                  <View style={[styles.legendDot, { backgroundColor: colors.danger }]} />
-                  <Text style={styles.legendText}>Saídas</Text>
+                <View style={styles.upgradeIllustration}>
+                  <View style={styles.coinStack}>
+                    <View style={[styles.coin, { backgroundColor: colors.accent }]} />
+                    <View style={[styles.coin, { backgroundColor: colors.primary, marginTop: -15 }]} />
+                    <View style={[styles.coin, { backgroundColor: colors.accent, marginTop: -15 }]} />
+                  </View>
                 </View>
               </View>
             </View>
-          </View>
 
-          {/* Gráfico 3: Evolução do Saldo */}
-          <View style={[styles.card, styles.cardWide]}>
-            <CardHeader title="Evolução do Saldo (6 meses)" color="#3b82f6" icon={icons.report} />
-            <View style={[styles.cardBody, { alignItems: 'center' }]}>
-              <LineChart data={evolucaoSaldo} />
-              <View style={styles.saldoInfo}>
-                <Text style={styles.saldoInfoLabel}>Saldo Atual Acumulado:</Text>
-                <Text style={[styles.saldoInfoValue, { color: evolucaoSaldo[evolucaoSaldo.length - 1]?.saldoAcumulado >= 0 ? colors.success : colors.danger }]}>
-                  {moedaVisualizacao === 'TODAS' ? 'Selecione moeda' : formatCurrencyWithCode(evolucaoSaldo[evolucaoSaldo.length - 1]?.saldoAcumulado || 0, moedaVisualizacao)}
+            {/* Gráfico Breakdown */}
+            <View style={styles.breakdownCard}>
+              <View style={styles.chartHeader}>
+                <View>
+                  <Text style={styles.chartTitle}>Breakdown de Receitas</Text>
+                  <Text style={styles.chartSubtitle}>Evolução semanal do período selecionado</Text>
+                </View>
+                <View style={styles.chartBadge}>
+                  <Text style={styles.chartBadgeText}>Semanal</Text>
+                </View>
+              </View>
+
+              <View style={styles.breakdownSummary}>
+                <View style={styles.summaryItem}>
+                  <Text style={styles.summaryLabel}>Total Recebido</Text>
+                  <Text style={[styles.summaryValue, { color: colors.success }]}>
+                    +{formatCurrency(totaisConvertidos.receitas, moedaExibicao)}
+                  </Text>
+                </View>
+                <View style={styles.summaryDivider} />
+                <View style={styles.summaryItem}>
+                  <Text style={styles.summaryLabel}>Total Gasto</Text>
+                  <Text style={[styles.summaryValue, { color: colors.danger }]}>
+                    -{formatCurrency(totaisConvertidos.despesas, moedaExibicao)}
+                  </Text>
+                </View>
+                <View style={styles.summaryDivider} />
+                <View style={styles.summaryItem}>
+                  <Text style={styles.summaryLabel}>Saldo</Text>
+                  <Text style={[styles.summaryValue, { color: totaisConvertidos.saldo >= 0 ? colors.success : colors.danger }]}>
+                    {formatCurrency(totaisConvertidos.saldo, moedaExibicao)}
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.breakdownChartContainer}>
+                <AreaChart
+                  data={chartData}
+                  colors={colors}
+                  width={isWeb ? 700 : screenWidth - 60}
+                  height={280}
+                />
+              </View>
+
+              {/* Categorias */}
+              <View style={styles.categoriesGrid}>
+                {gastosPorCategoria.map(([cat, valor]) => {
+                  const catInfo = CATEGORIAS[cat as keyof typeof CATEGORIAS] || CATEGORIAS['Outros'];
+                  return (
+                    <View key={cat} style={styles.categoryItem}>
+                      <View style={[styles.categoryIcon, { backgroundColor: catInfo.cor + '20' }]}>
+                        <Ionicons name={catInfo.icon as any} size={18} color={catInfo.cor} />
+                      </View>
+                      <View style={styles.categoryInfo}>
+                        <Text style={styles.categoryName}>{cat}</Text>
+                        <Text style={styles.categoryValue}>{formatCurrency(valor, moedaExibicao)}</Text>
+                      </View>
+                      <View style={styles.categoryPercent}>
+                        <Text style={styles.categoryPercentText}>{calcularPorcentagem(valor)}%</Text>
+                      </View>
+                    </View>
+                  );
+                })}
+              </View>
+            </View>
+
+            {/* Row de Gráficos Secundários */}
+            <View style={styles.chartsRow}>
+              {/* Gráfico de Barras - Receitas vs Despesas */}
+              <View style={[styles.chartCard, styles.chartCardHalf]}>
+                <View style={styles.chartHeader}>
+                  <Text style={styles.chartTitle}>Receitas vs Despesas</Text>
+                  <View style={styles.chartBadge}>
+                    <Text style={styles.chartBadgeText}>6 meses</Text>
+                  </View>
+                </View>
+                <View style={styles.chartLegend}>
+                  <View style={styles.legendItem}>
+                    <View style={[styles.legendDot, { backgroundColor: colors.primary }]} />
+                    <Text style={styles.legendText}>Receitas</Text>
+                  </View>
+                  <View style={styles.legendItem}>
+                    <View style={[styles.legendDot, { backgroundColor: colors.danger }]} />
+                    <Text style={styles.legendText}>Despesas</Text>
+                  </View>
+                </View>
+                <View style={styles.chartContainer}>
+                  <BarChart
+                    data={barChartData}
+                    colors={colors}
+                    width={isWeb ? 320 : screenWidth - 80}
+                    height={180}
+                    labels={barChartLabels}
+                  />
+                </View>
+              </View>
+
+              {/* Gráfico Donut - Categorias */}
+              <View style={[styles.chartCard, styles.chartCardHalf]}>
+                <View style={styles.chartHeader}>
+                  <Text style={styles.chartTitle}>Despesas por Categoria</Text>
+                  <View style={styles.chartBadge}>
+                    <Text style={styles.chartBadgeText}>Período</Text>
+                  </View>
+                </View>
+                <View style={styles.donutContainer}>
+                  <DonutChart
+                    data={donutData}
+                    colors={colors}
+                    size={160}
+                    strokeWidth={25}
+                  />
+                </View>
+                <View style={styles.donutLegend}>
+                  {donutData.slice(0, 4).map((item, index) => (
+                    <View key={index} style={styles.donutLegendItem}>
+                      <View style={[styles.legendDot, { backgroundColor: item.color }]} />
+                      <Text style={styles.legendText} numberOfLines={1}>{item.label}</Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            </View>
+
+            {/* Row de Indicadores */}
+            <View style={styles.indicatorsRow}>
+              {/* Gauge - Taxa de Economia */}
+              <View style={styles.gaugeCard}>
+                <Text style={styles.gaugeTitle}>Taxa de Economia</Text>
+                <GaugeChart
+                  value={taxaEconomia}
+                  maxValue={1}
+                  colors={colors}
+                  size={130}
+                  label="do total"
+                />
+                <Text style={styles.gaugeSubtext}>
+                  {taxaEconomia >= 0.2 ? 'Parabéns! Boa economia' : 'Tente economizar mais'}
                 </Text>
               </View>
-            </View>
-          </View>
 
-          {/* Card Últimos Lançamentos */}
-          <View style={[styles.card, styles.cardWide]}>
-            <CardHeader title="Últimos Lançamentos" color="#8b5cf6" icon={icons.coin} />
-            <View style={styles.cardBody}>
-              {transacoesFiltradas.length > 0 ? (
-                [...transacoesFiltradas]
-                  .sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime())
-                  .slice(0, 8)
-                  .map((t, i) => (
-                    <View key={i} style={styles.lancamentoItem}>
-                      <View style={[styles.lancamentoIcon, { backgroundColor: t.tipo === 'receita' ? colors.successLight : colors.dangerLight }]}>
-                        <Ionicons
-                          name={t.tipo === 'receita' ? 'trending-up' : 'trending-down'}
-                          size={18}
-                          color={t.tipo === 'receita' ? colors.success : colors.danger}
-                        />
-                      </View>
-                      <View style={styles.lancamentoInfo}>
-                        <Text style={styles.lancamentoDesc}>{t.descricao || t.categoria}</Text>
-                        <Text style={styles.lancamentoCat}>{t.categoria} • {new Date(t.data).toLocaleDateString('pt-BR')}</Text>
-                      </View>
-                      <Text style={[styles.lancamentoValor, { color: t.tipo === 'receita' ? colors.success : colors.danger }]}>
-                        {t.tipo === 'receita' ? '+' : '-'}{formatValorExibicao(t.valor, t.moeda || 'BRL')}
-                      </Text>
+              {/* Gauge - Uso do Orçamento */}
+              <View style={styles.gaugeCard}>
+                <Text style={styles.gaugeTitle}>Uso do Orçamento</Text>
+                <GaugeChart
+                  value={orcamentoMensal}
+                  maxValue={1}
+                  colors={colors}
+                  size={130}
+                  label="utilizado"
+                />
+                <Text style={styles.gaugeSubtext}>
+                  {orcamentoMensal < 0.8 ? 'Dentro do planejado' : 'Atenção aos gastos!'}
+                </Text>
+              </View>
+
+              {/* Mini Sparklines */}
+              <View style={styles.sparklinesCard}>
+                <Text style={styles.gaugeTitle}>Tendência (14 dias)</Text>
+                <View style={styles.sparklineRow}>
+                  <View style={styles.sparklineItem}>
+                    <View style={styles.sparklineHeader}>
+                      <Ionicons name="arrow-up-circle" size={16} color={colors.success} />
+                      <Text style={styles.sparklineLabel}>Receitas</Text>
                     </View>
-                  ))
+                    <Sparkline data={sparklineReceitas} color={colors.success} width={100} height={35} />
+                  </View>
+                  <View style={styles.sparklineItem}>
+                    <View style={styles.sparklineHeader}>
+                      <Ionicons name="arrow-down-circle" size={16} color={colors.danger} />
+                      <Text style={styles.sparklineLabel}>Despesas</Text>
+                    </View>
+                    <Sparkline data={sparklineDespesas} color={colors.danger} width={100} height={35} />
+                  </View>
+                </View>
+              </View>
+            </View>
+
+            {/* Top Despesas */}
+            <View style={styles.chartCard}>
+              <View style={styles.chartHeader}>
+                <Text style={styles.chartTitle}>Top 5 Despesas</Text>
+                <View style={styles.chartBadge}>
+                  <Text style={styles.chartBadgeText}>Ranking</Text>
+                </View>
+              </View>
+              {topDespesas.length > 0 ? (
+                <HorizontalBarChart data={topDespesas} colors={colors} />
               ) : (
-                <Text style={styles.emptyText}>Nenhum lançamento no período</Text>
+                <Text style={styles.emptyText}>Nenhuma despesa no período</Text>
               )}
             </View>
           </View>
 
-          {/* Card Metas */}
-          <View style={styles.card}>
-            <CardHeader title="Metas Financeiras" onAdd={() => setModalMeta(true)} icon={icons.target} />
-            <View style={styles.cardBody}>
-              {metas.length > 0 ? metas.slice(0, 4).map((m, i) => {
-                const progresso = m.valor_alvo > 0 ? (m.valor_atual / m.valor_alvo) * 100 : 0;
+          {/* Coluna Lateral */}
+          <View style={styles.sideColumn}>
+            {/* Card do Usuário */}
+            <View style={styles.userCard}>
+              <View style={styles.userCardHeader}>
+                <View style={styles.userBadge}>
+                  <Text style={styles.userBadgeText}>ATIVO</Text>
+                </View>
+                <TouchableOpacity onPress={toggleTheme}>
+                  <Ionicons name={isDark ? 'sunny' : 'moon'} size={20} color={isDark ? '#f59e0b' : '#6366f1'} />
+                </TouchableOpacity>
+              </View>
+              <View style={styles.userInfo}>
+                <View style={styles.userAvatar}>
+                  <Text style={styles.userAvatarText}>{userName.charAt(0).toUpperCase()}</Text>
+                </View>
+                <View>
+                  <Text style={styles.userName}>{userName}</Text>
+                  <Text style={styles.userPlan}>Express Stage</Text>
+                </View>
+              </View>
+              <View style={styles.userCardNumber}>
+                <Text style={styles.userCardLabel}>Conta Principal</Text>
+                <Text style={styles.userCardDigits}>•••• •••• •••• 5409</Text>
+              </View>
+            </View>
+
+            {/* Saldos por Moeda */}
+            <View style={styles.sectionCard}>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>Saldos por Moeda</Text>
+              </View>
+              {Object.entries(calcularPorMoeda).map(([moeda, valores]) => {
+                const m = MOEDAS.find(m => m.codigo === moeda) || MOEDAS[0];
                 return (
-                  <View key={i} style={styles.metaItem}>
-                    <Text style={styles.metaName}>{m.nome}</Text>
-                    <View style={styles.metaBarBg}>
-                      <View style={[styles.metaBar, { width: `${Math.min(progresso, 100)}%`, backgroundColor: m.cor }]} />
+                  <View key={moeda} style={styles.currencyItem}>
+                    <View style={styles.currencyLeft}>
+                      <View style={[styles.currencyIcon, { backgroundColor: colors.primaryLight }]}>
+                        <Text style={styles.currencySymbol}>{m.simbolo}</Text>
+                      </View>
+                      <View>
+                        <Text style={styles.currencyCode}>{moeda}</Text>
+                        <Text style={styles.currencyName}>{m.nome}</Text>
+                      </View>
                     </View>
-                    <Text style={styles.metaPercent}>{progresso.toFixed(0)}%</Text>
+                    <Text style={[styles.currencyBalance, { color: valores.saldo >= 0 ? colors.success : colors.danger }]}>
+                      {formatCurrency(valores.saldo, moeda)}
+                    </Text>
                   </View>
                 );
-              }) : <Text style={styles.emptyText}>Nenhuma meta</Text>}
+              })}
+            </View>
+
+            {/* Próximas Contas */}
+            <View style={styles.sectionCard}>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>Próximas Contas</Text>
+                <TouchableOpacity>
+                  <Text style={styles.seeMoreText}>Ver mais</Text>
+                </TouchableOpacity>
+              </View>
+
+              {proximasContas.length === 0 ? (
+                <Text style={styles.emptyText}>Nenhuma conta pendente</Text>
+              ) : (
+                proximasContas.map((conta) => {
+                  const m = MOEDAS.find(m => m.codigo === conta.moeda) || MOEDAS[0];
+                  const hoje = new Date();
+                  const vencimento = new Date(conta.ano_referencia, conta.mes_referencia - 1, conta.dia_vencimento);
+                  const mesNome = vencimento.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '');
+
+                  return (
+                    <View key={conta.id} style={styles.billItem}>
+                      <View style={styles.billDate}>
+                        <Text style={styles.billMonth}>{mesNome}</Text>
+                        <Text style={styles.billDay}>{conta.dia_vencimento}</Text>
+                      </View>
+                      <View style={styles.billInfo}>
+                        <View style={[styles.billIcon, { backgroundColor: colors.warningLight }]}>
+                          <Ionicons name="receipt" size={16} color={colors.warning} />
+                        </View>
+                        <View style={styles.billDetails}>
+                          <Text style={styles.billName}>{conta.nome}</Text>
+                          <Text style={styles.billPlan}>Mensal</Text>
+                        </View>
+                      </View>
+                      <Text style={styles.billValue}>{formatCurrency(conta.valor, conta.moeda || 'BRL')}</Text>
+                    </View>
+                  );
+                })
+              )}
             </View>
           </View>
-
         </View>
       </ScrollView>
 
-      {/* Modal Filtro de Período */}
-      <Modal visible={modalFiltro} transparent animationType="slide">
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { maxWidth: 400 }]}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Filtrar por Período</Text>
-              <TouchableOpacity onPress={() => { setModalFiltro(false); setCalendarioAtivo(null); }}>
+      {/* Modal Calendário */}
+      <Modal visible={showCalendar} transparent animationType="fade">
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowCalendar(false)}
+        >
+          <TouchableOpacity activeOpacity={1} style={styles.calendarModal}>
+            <View style={styles.calendarHeader}>
+              <Text style={styles.calendarTitle}>Selecionar Período</Text>
+              <TouchableOpacity onPress={() => setShowCalendar(false)}>
                 <Ionicons name="close" size={24} color={colors.textSecondary} />
               </TouchableOpacity>
             </View>
-            
-            {/* Seletores de Data */}
-            <View style={styles.datePickerRow}>
-              <View style={styles.datePickerCol}>
-                <Text style={styles.inputLabel}>Data Início</Text>
+
+            {/* Presets rápidos */}
+            <View style={styles.presetsContainer}>
+              {[
+                { id: 'hoje', label: 'Hoje' },
+                { id: 'semana', label: '7 dias' },
+                { id: 'mes', label: 'Este mês' },
+                { id: 'trimestre', label: '3 meses' },
+                { id: 'ano', label: 'Este ano' },
+              ].map((preset) => (
                 <TouchableOpacity
-                  style={[styles.datePickerBtn, calendarioAtivo === 'inicio' && styles.datePickerBtnActive]}
-                  onPress={() => setCalendarioAtivo(calendarioAtivo === 'inicio' ? null : 'inicio')}
+                  key={preset.id}
+                  style={styles.presetBtn}
+                  onPress={() => aplicarPreset(preset.id)}
                 >
-                  <Ionicons name="calendar-outline" size={18} color={calendarioAtivo === 'inicio' ? '#fff' : colors.primary} />
-                  <Text style={[styles.datePickerText, calendarioAtivo === 'inicio' && styles.datePickerTextActive]}>
-                    {dataInicio ? formatarDataExibicao(dataInicio) : 'Selecionar'}
-                  </Text>
+                  <Text style={styles.presetBtnText}>{preset.label}</Text>
                 </TouchableOpacity>
-              </View>
-              
-              <View style={styles.datePickerArrow}>
-                <Ionicons name="arrow-forward" size={20} color={colors.textMuted} />
-              </View>
-              
-              <View style={styles.datePickerCol}>
-                <Text style={styles.inputLabel}>Data Fim</Text>
-                <TouchableOpacity
-                  style={[styles.datePickerBtn, calendarioAtivo === 'fim' && styles.datePickerBtnActive]}
-                  onPress={() => setCalendarioAtivo(calendarioAtivo === 'fim' ? null : 'fim')}
-                >
-                  <Ionicons name="calendar-outline" size={18} color={calendarioAtivo === 'fim' ? '#fff' : colors.primary} />
-                  <Text style={[styles.datePickerText, calendarioAtivo === 'fim' && styles.datePickerTextActive]}>
-                    {dataFim ? formatarDataExibicao(dataFim) : 'Selecionar'}
-                  </Text>
-                </TouchableOpacity>
-              </View>
+              ))}
             </View>
-            
-            {/* Calendário */}
-            {calendarioAtivo && (
-              <View style={styles.calendarioContainer}>
-                <Text style={styles.calendarioLabel}>
-                  Selecionando: {calendarioAtivo === 'inicio' ? 'Data Início' : 'Data Fim'}
-                </Text>
-                <Calendario />
-              </View>
-            )}
-            
-            {/* Resumo do período selecionado */}
-            {dataInicio && dataFim && (
-              <View style={styles.periodoResumo}>
-                <Ionicons name="checkmark-circle" size={18} color={colors.success} />
-                <Text style={styles.periodoResumoText}>
-                  {formatarDataExibicao(dataInicio)} até {formatarDataExibicao(dataFim)}
-                </Text>
-              </View>
-            )}
-            
-            <View style={styles.filterBtnsRow}>
-              <TouchableOpacity style={[styles.saveBtn, { flex: 1, backgroundColor: '#64748b', marginRight: 8 }]} onPress={limparFiltro}>
-                <Text style={styles.saveBtnText}>Limpar</Text>
+
+            {/* Navegação do mês */}
+            <View style={styles.calendarNav}>
+              <TouchableOpacity onPress={() => {
+                if (calendarioMes === 0) {
+                  setCalendarioMes(11);
+                  setCalendarioAno(calendarioAno - 1);
+                } else {
+                  setCalendarioMes(calendarioMes - 1);
+                }
+              }}>
+                <Ionicons name="chevron-back" size={24} color={colors.text} />
               </TouchableOpacity>
-              <TouchableOpacity 
-                style={[styles.saveBtn, { flex: 1, opacity: dataInicio && dataFim ? 1 : 0.5 }]} 
-                onPress={aplicarFiltroPeriodo}
-                disabled={!dataInicio || !dataFim}
-              >
-                <Text style={styles.saveBtnText}>Aplicar</Text>
+              <Text style={styles.calendarMonthYear}>
+                {MESES_COMPLETOS[calendarioMes]} {calendarioAno}
+              </Text>
+              <TouchableOpacity onPress={() => {
+                if (calendarioMes === 11) {
+                  setCalendarioMes(0);
+                  setCalendarioAno(calendarioAno + 1);
+                } else {
+                  setCalendarioMes(calendarioMes + 1);
+                }
+              }}>
+                <Ionicons name="chevron-forward" size={24} color={colors.text} />
               </TouchableOpacity>
             </View>
-          </View>
-        </View>
+
+            {/* Dias da semana */}
+            <View style={styles.weekDaysRow}>
+              {DIAS_SEMANA.map((dia) => (
+                <Text key={dia} style={styles.weekDayText}>{dia}</Text>
+              ))}
+            </View>
+
+            {/* Grid de dias */}
+            <View style={styles.daysGrid}>
+              {gerarDiasCalendario().map((dia, index) => (
+                <TouchableOpacity
+                  key={index}
+                  style={[
+                    styles.dayCell,
+                    dia !== null && estaNoRange(dia) ? styles.dayCellInRange : undefined,
+                    dia !== null && eDataInicio(dia) ? styles.dayCellStart : undefined,
+                    dia !== null && eDataFim(dia) ? styles.dayCellEnd : undefined,
+                  ]}
+                  onPress={() => dia !== null && selecionarData(dia)}
+                  disabled={dia === null}
+                >
+                  {dia !== null && (
+                    <Text style={[
+                      styles.dayText,
+                      estaNoRange(dia) ? styles.dayTextInRange : undefined,
+                      (eDataInicio(dia) || eDataFim(dia)) ? styles.dayTextSelected : undefined,
+                    ]}>
+                      {dia}
+                    </Text>
+                  )}
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {/* Range selecionado */}
+            <View style={styles.selectedRangeInfo}>
+              <View style={styles.rangeItem}>
+                <Text style={styles.rangeLabel}>Início</Text>
+                <Text style={styles.rangeValue}>
+                  {dataInicio.toLocaleDateString('pt-BR')}
+                </Text>
+              </View>
+              <Ionicons name="arrow-forward" size={20} color={colors.textMuted} />
+              <View style={styles.rangeItem}>
+                <Text style={styles.rangeLabel}>Fim</Text>
+                <Text style={styles.rangeValue}>
+                  {dataFim.toLocaleDateString('pt-BR')}
+                </Text>
+              </View>
+            </View>
+
+            <Text style={styles.calendarHint}>
+              {selecionandoInicio ? 'Selecione a data inicial' : 'Selecione a data final'}
+            </Text>
+          </TouchableOpacity>
+        </TouchableOpacity>
       </Modal>
-
-      {/* Modal Entrada */}
-      <FormModal visible={modalEntrada} onClose={() => { setModalEntrada(false); resetForm(); }} title="Nova Entrada" onSave={handleAddEntrada} styles={styles} closeColor={colors.textSecondary}>
-        <Text style={styles.inputLabel}>Nome</Text>
-        <TextInput style={styles.input} value={formNome} onChangeText={setFormNome} placeholder="Ex: Salário" placeholderTextColor={colors.textMuted} />
-        <Text style={styles.inputLabel}>Valor</Text>
-        <View style={styles.valorInputContainer}>
-          <TouchableOpacity style={styles.moedaBtn} onPress={() => setMostrarSeletorMoeda(true)}>
-            <Text style={styles.moedaBtnText}>{moedaSelecionada.simbolo}</Text>
-            <Ionicons name="chevron-down" size={14} color={colors.primary} />
-          </TouchableOpacity>
-          <TextInput
-            style={[styles.input, styles.valorInput]}
-            value={formValor}
-            onChangeText={formatarValorInput}
-            placeholder="0,00"
-            keyboardType="numeric"
-            placeholderTextColor={colors.textMuted}
-          />
-        </View>
-      </FormModal>
-
-      {/* Modal Conta Fixa */}
-      <FormModal visible={modalContaFixa} onClose={() => { setModalContaFixa(false); resetForm(); }} title="Nova Conta Fixa" onSave={handleAddContaFixa} styles={styles} closeColor={colors.textSecondary}>
-        <Text style={styles.inputLabel}>Nome</Text>
-        <TextInput style={styles.input} value={formNome} onChangeText={setFormNome} placeholder="Ex: Aluguel" placeholderTextColor={colors.textMuted} />
-        <Text style={styles.inputLabel}>Valor</Text>
-        <View style={styles.valorInputContainer}>
-          <TouchableOpacity style={styles.moedaBtn} onPress={() => setMostrarSeletorMoeda(true)}>
-            <Text style={styles.moedaBtnText}>{moedaSelecionada.simbolo}</Text>
-            <Ionicons name="chevron-down" size={14} color={colors.primary} />
-          </TouchableOpacity>
-          <TextInput
-            style={[styles.input, styles.valorInput]}
-            value={formValor}
-            onChangeText={formatarValorInput}
-            placeholder="0,00"
-            keyboardType="numeric"
-            placeholderTextColor={colors.textMuted}
-          />
-        </View>
-        <Text style={styles.inputLabel}>Dia do Vencimento</Text>
-        <TextInput style={styles.input} value={formDia} onChangeText={setFormDia} placeholder="1" keyboardType="numeric" placeholderTextColor={colors.textMuted} />
-        <Text style={styles.inputLabel}>Parcelas</Text>
-        <TextInput style={styles.input} value={formParcelas} onChangeText={setFormParcelas} placeholder="1" keyboardType="numeric" placeholderTextColor={colors.textMuted} />
-      </FormModal>
-
-      {/* Modal Gasto */}
-      <FormModal visible={modalGasto} onClose={() => { setModalGasto(false); resetForm(); setMostrarNovaCategoria(false); }} title="Novo Gasto" onSave={handleAddGasto} styles={styles} closeColor={colors.textSecondary}>
-        <Text style={styles.inputLabel}>Descrição</Text>
-        <TextInput style={styles.input} value={formNome} onChangeText={setFormNome} placeholder="Ex: Supermercado" placeholderTextColor={colors.textMuted} />
-        <Text style={styles.inputLabel}>Valor</Text>
-        <View style={styles.valorInputContainer}>
-          <TouchableOpacity style={styles.moedaBtn} onPress={() => setMostrarSeletorMoeda(true)}>
-            <Text style={styles.moedaBtnText}>{moedaSelecionada.simbolo}</Text>
-            <Ionicons name="chevron-down" size={14} color={colors.primary} />
-          </TouchableOpacity>
-          <TextInput
-            style={[styles.input, styles.valorInput]}
-            value={formValor}
-            onChangeText={formatarValorInput}
-            placeholder="0,00"
-            keyboardType="numeric"
-            placeholderTextColor={colors.textMuted}
-          />
-        </View>
-        <CategoriaSelector />
-        <Text style={styles.inputLabel}>Dia</Text>
-        <TextInput style={styles.input} value={formDia} onChangeText={setFormDia} placeholder="1" keyboardType="numeric" placeholderTextColor={colors.textMuted} />
-      </FormModal>
-
-      {/* Modal Meta */}
-      <FormModal visible={modalMeta} onClose={() => { setModalMeta(false); resetForm(); }} title="Nova Meta" onSave={handleAddMeta} styles={styles} closeColor={colors.textSecondary}>
-        <Text style={styles.inputLabel}>Nome</Text>
-        <TextInput style={styles.input} value={formNome} onChangeText={setFormNome} placeholder="Ex: Viagem" placeholderTextColor={colors.textMuted} />
-        <Text style={styles.inputLabel}>Valor Alvo</Text>
-        <View style={styles.valorInputContainer}>
-          <TouchableOpacity style={styles.moedaBtn} onPress={() => setMostrarSeletorMoeda(true)}>
-            <Text style={styles.moedaBtnText}>{moedaSelecionada.simbolo}</Text>
-            <Ionicons name="chevron-down" size={14} color={colors.primary} />
-          </TouchableOpacity>
-          <TextInput
-            style={[styles.input, styles.valorInput]}
-            value={formValor}
-            onChangeText={formatarValorInput}
-            placeholder="0,00"
-            keyboardType="numeric"
-            placeholderTextColor={colors.textMuted}
-          />
-        </View>
-      </FormModal>
-
-      {/* Modal Investimento */}
-      <FormModal visible={modalInvestimento} onClose={() => { setModalInvestimento(false); resetForm(); }} title="Novo Investimento" onSave={handleAddInvestimento} styles={styles} closeColor={colors.textSecondary}>
-        <Text style={styles.inputLabel}>Nome</Text>
-        <TextInput style={styles.input} value={formNome} onChangeText={setFormNome} placeholder="Ex: Tesouro Selic" placeholderTextColor={colors.textMuted} />
-        <Text style={styles.inputLabel}>Tipo</Text>
-        <TextInput style={styles.input} value={formTipo} onChangeText={setFormTipo} placeholder="Renda Fixa, Ações, FII..." placeholderTextColor={colors.textMuted} />
-        <Text style={styles.inputLabel}>Valor</Text>
-        <View style={styles.valorInputContainer}>
-          <TouchableOpacity style={styles.moedaBtn} onPress={() => setMostrarSeletorMoeda(true)}>
-            <Text style={styles.moedaBtnText}>{moedaSelecionada.simbolo}</Text>
-            <Ionicons name="chevron-down" size={14} color={colors.primary} />
-          </TouchableOpacity>
-          <TextInput
-            style={[styles.input, styles.valorInput]}
-            value={formValor}
-            onChangeText={formatarValorInput}
-            placeholder="0,00"
-            keyboardType="numeric"
-            placeholderTextColor={colors.textMuted}
-          />
-        </View>
-        <Text style={styles.inputLabel}>Ticker (opcional)</Text>
-        <TextInput style={styles.input} value={formTicker} onChangeText={setFormTicker} placeholder="PETR4" placeholderTextColor={colors.textMuted} />
-      </FormModal>
 
       {/* Modal Seletor de Moeda */}
-      <Modal visible={mostrarSeletorMoeda} transparent animationType="fade">
-        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setMostrarSeletorMoeda(false)}>
-          <View style={styles.moedaModalContent}>
-            <Text style={styles.moedaModalTitle}>Selecione a Moeda</Text>
-            {MOEDAS.map((moeda) => (
-              <TouchableOpacity
-                key={moeda.codigo}
-                style={[styles.moedaOption, moedaSelecionada.codigo === moeda.codigo && styles.moedaOptionActive]}
-                onPress={() => salvarMoeda(moeda)}
-              >
-                <Text style={styles.moedaOptionSimbolo}>{moeda.simbolo}</Text>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.moedaOptionNome}>{moeda.nome}</Text>
-                  <Text style={styles.moedaOptionCodigo}>{moeda.codigo}</Text>
-                </View>
-                {moedaSelecionada.codigo === moeda.codigo && (
-                  <Ionicons name="checkmark-circle" size={22} color={colors.primary} />
-                )}
-              </TouchableOpacity>
-            ))}
-          </View>
-        </TouchableOpacity>
-      </Modal>
-
-      {/* Modal Seletor de Moeda de Visualização */}
-      <Modal visible={mostrarSeletorMoedaVis} transparent animationType="fade">
-        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setMostrarSeletorMoedaVis(false)}>
-          <View style={styles.moedaModalContent}>
-            <Text style={styles.moedaModalTitle}>Visualizar em</Text>
-            <TouchableOpacity
-              style={[styles.moedaOption, moedaVisualizacao === 'TODAS' && styles.moedaOptionActive]}
-              onPress={() => salvarMoedaVisualizacao('TODAS')}
-            >
-              <Text style={styles.moedaOptionSimbolo}>🌍</Text>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.moedaOptionNome}>Moedas Originais</Text>
-                <Text style={styles.moedaOptionCodigo}>Cada item na sua moeda</Text>
-              </View>
-              {moedaVisualizacao === 'TODAS' && (
-                <Ionicons name="checkmark-circle" size={22} color={colors.primary} />
-              )}
-            </TouchableOpacity>
-            {MOEDAS.map((moeda) => (
-              <TouchableOpacity
-                key={moeda.codigo}
-                style={[styles.moedaOption, moedaVisualizacao === moeda.codigo && styles.moedaOptionActive]}
-                onPress={() => salvarMoedaVisualizacao(moeda.codigo)}
-              >
-                <Text style={styles.moedaOptionSimbolo}>{moeda.simbolo}</Text>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.moedaOptionNome}>Tudo em {moeda.nome}</Text>
-                  <Text style={styles.moedaOptionCodigo}>Converte para {moeda.codigo}</Text>
-                </View>
-                {moedaVisualizacao === moeda.codigo && (
-                  <Ionicons name="checkmark-circle" size={22} color={colors.primary} />
-                )}
-              </TouchableOpacity>
-            ))}
-          </View>
-        </TouchableOpacity>
-      </Modal>
-
-      {/* Modal Gerenciar Categorias */}
-      <Modal visible={modalGerenciarCategorias} transparent animationType="slide">
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { maxWidth: 450 }]}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Gerenciar Categorias</Text>
-              <TouchableOpacity onPress={() => setModalGerenciarCategorias(false)}>
+      <Modal visible={showMoedaSelector} transparent animationType="fade">
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowMoedaSelector(false)}
+        >
+          <View style={styles.moedaModal}>
+            <View style={styles.moedaModalHeader}>
+              <Text style={styles.moedaModalTitle}>Exibir valores em</Text>
+              <TouchableOpacity onPress={() => setShowMoedaSelector(false)}>
                 <Ionicons name="close" size={24} color={colors.textSecondary} />
               </TouchableOpacity>
             </View>
-            
-            <ScrollView style={{ maxHeight: 400 }}>
-              <Text style={styles.inputLabel}>Categorias Padrão</Text>
-              {CATEGORIAS_PADRAO.map((cat) => (
-                <View key={cat} style={styles.categoriaItemContainer}>
-                  <View style={[styles.categoriaItemIcon, { backgroundColor: categoriaCores[cat] }]} />
-                  <Text style={styles.categoriaItemNome}>{cat}</Text>
-                  <Text style={styles.categoriaItemBadge}>Padrão</Text>
-                </View>
-              ))}
-              
-              <Text style={[styles.inputLabel, { marginTop: 20 }]}>Categorias Personalizadas</Text>
-              {categoriasPersonalizadas.length === 0 ? (
-                <Text style={{ color: colors.textMuted, fontSize: 14, marginBottom: 12 }}>
-                  Nenhuma categoria personalizada
-                </Text>
-              ) : (
-                categoriasPersonalizadas.map((cat) => (
-                  <View key={cat} style={styles.categoriaItemContainer}>
-                    {editandoCategoria === cat ? (
-                      <>
-                        <TextInput
-                          style={[styles.input, { flex: 1, marginBottom: 0 }]}
-                          value={novoNomeCategoria}
-                          onChangeText={setNovoNomeCategoria}
-                          autoFocus
-                        />
-                        <TouchableOpacity
-                          style={styles.categoriaActionBtn}
-                          onPress={() => editarCategoria(cat)}
-                        >
-                          <Ionicons name="checkmark" size={20} color={colors.success} />
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                          style={styles.categoriaActionBtn}
-                          onPress={() => { setEditandoCategoria(null); setNovoNomeCategoria(''); }}
-                        >
-                          <Ionicons name="close" size={20} color={colors.textSecondary} />
-                        </TouchableOpacity>
-                      </>
-                    ) : (
-                      <>
-                        <View style={[styles.categoriaItemIcon, { backgroundColor: colors.textSecondary }]} />
-                        <Text style={[styles.categoriaItemNome, { flex: 1 }]}>{cat}</Text>
-                        <TouchableOpacity
-                          style={styles.categoriaActionBtn}
-                          onPress={() => { setEditandoCategoria(cat); setNovoNomeCategoria(cat); }}
-                        >
-                          <Ionicons name="pencil" size={18} color={colors.info} />
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                          style={styles.categoriaActionBtn}
-                          onPress={() => removerCategoria(cat)}
-                        >
-                          <Ionicons name="trash" size={18} color={colors.danger} />
-                        </TouchableOpacity>
-                      </>
-                    )}
+
+            {MODOS_MOEDA.map((modo) => (
+              <TouchableOpacity
+                key={modo.codigo}
+                style={[
+                  styles.moedaOption,
+                  modoMoeda === modo.codigo && styles.moedaOptionActive,
+                ]}
+                onPress={() => {
+                  setModoMoeda(modo.codigo as ModoMoeda);
+                  setShowMoedaSelector(false);
+                }}
+              >
+                {modo.codigo === 'MISTO' ? (
+                  <View style={styles.moedaOptionIcon}>
+                    <Ionicons name="layers-outline" size={24} color={colors.primary} />
                   </View>
-                ))
-              )}
-              
-              <Text style={[styles.inputLabel, { marginTop: 20 }]}>Adicionar Nova Categoria</Text>
-              <View style={{ flexDirection: 'row', gap: 8 }}>
-                <TextInput
-                  style={[styles.input, { flex: 1, marginBottom: 0 }]}
-                  placeholder="Nome da categoria"
-                  placeholderTextColor={colors.textMuted}
-                  value={novaCategoria}
-                  onChangeText={setNovaCategoria}
-                />
-                <TouchableOpacity
-                  style={[styles.saveBtn, { paddingHorizontal: 16 }]}
-                  onPress={adicionarCategoriaGerenciamento}
-                >
-                  <Ionicons name="add" size={22} color="#fff" />
-                </TouchableOpacity>
+                ) : (
+                  <Text style={styles.moedaOptionFlag}>{modo.bandeira}</Text>
+                )}
+                <View style={styles.moedaOptionInfo}>
+                  <Text style={styles.moedaOptionName}>{modo.nome}</Text>
+                  {modo.codigo !== 'MISTO' && (
+                    <Text style={styles.moedaOptionDesc}>
+                      Converte todos os valores para {modo.codigo}
+                    </Text>
+                  )}
+                  {modo.codigo === 'MISTO' && (
+                    <Text style={styles.moedaOptionDesc}>
+                      Mostra cada moeda separadamente
+                    </Text>
+                  )}
+                </View>
+                {modoMoeda === modo.codigo && (
+                  <Ionicons name="checkmark-circle" size={24} color={colors.success} />
+                )}
+              </TouchableOpacity>
+            ))}
+
+            <View style={styles.cotacoesInfo}>
+              <Text style={styles.cotacoesTitle}>Cotações atuais (para BRL)</Text>
+              <View style={styles.cotacoesGrid}>
+                {MOEDAS.filter(m => m.codigo !== 'BRL').map((moeda) => (
+                  <View key={moeda.codigo} style={styles.cotacaoItem}>
+                    <Text style={styles.cotacaoFlag}>{moeda.bandeira}</Text>
+                    <Text style={styles.cotacaoCode}>{moeda.codigo}</Text>
+                    <Text style={styles.cotacaoValue}>R$ {cotacoes[moeda.codigo]?.toFixed(2)}</Text>
+                  </View>
+                ))}
               </View>
-            </ScrollView>
-
-            <TouchableOpacity 
-              style={[styles.saveBtn, { marginTop: 20 }]}
-              onPress={() => setModalGerenciarCategorias(false)}
-            >
-              <Text style={styles.saveBtnText}>Fechar</Text>
-            </TouchableOpacity>
+            </View>
           </View>
-        </View>
+        </TouchableOpacity>
       </Modal>
-
     </View>
   );
 }
+
+const createStyles = (colors: any, isWeb: boolean) => StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  mainContent: {
+    flexDirection: isWeb ? 'row' : 'column',
+    padding: 24,
+    gap: 24,
+  },
+  mainColumn: {
+    flex: isWeb ? 2 : 1,
+    gap: 20,
+  },
+  sideColumn: {
+    flex: isWeb ? 1 : 1,
+    gap: 20,
+    maxWidth: isWeb ? 380 : '100%',
+  },
+
+  // Overview Header
+  overviewHeader: {
+    flexDirection: isWeb ? 'row' : 'column',
+    justifyContent: 'space-between',
+    alignItems: isWeb ? 'center' : 'flex-start',
+    gap: 16,
+  },
+  overviewTitle: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: colors.text,
+  },
+
+  // Metrics
+  metricsRow: {
+    flexDirection: isWeb ? 'row' : 'column',
+    gap: 16,
+  },
+  metricCard: {
+    flex: 1,
+    backgroundColor: colors.card,
+    borderRadius: 16,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+  },
+  metricHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  metricLabel: {
+    fontSize: 14,
+    color: colors.textSecondary,
+  },
+  metricValue: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: colors.text,
+    marginBottom: 4,
+  },
+  metricChange: {
+    fontSize: 13,
+    fontWeight: '500',
+  },
+
+  // Upgrade Card - Estilo escuro com accent mint
+  upgradeCard: {
+    backgroundColor: colors.sidebarBg,
+    borderRadius: 20,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: colors.primary + '30',
+  },
+  upgradeContent: {
+    flexDirection: 'row',
+    padding: 24,
+  },
+  upgradeTextContainer: {
+    flex: 1,
+  },
+  upgradeTitle: {
+    fontSize: 16,
+    color: colors.textMuted,
+    marginBottom: 4,
+  },
+  upgradeHighlight: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: '#fff',
+    marginBottom: 12,
+  },
+  upgradeDesc: {
+    fontSize: 13,
+    color: colors.textMuted,
+    marginBottom: 20,
+  },
+  upgradeBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.primary,
+    alignSelf: 'flex-start',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 25,
+    gap: 8,
+  },
+  upgradeBtnText: {
+    color: '#0f1f1a',
+    fontWeight: '600',
+    fontSize: 14,
+  },
+  upgradeIllustration: {
+    width: 120,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  coinStack: {
+    alignItems: 'center',
+  },
+  coin: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    borderWidth: 3,
+    borderColor: 'rgba(255,255,255,0.2)',
+  },
+
+  // Chart
+  chartCard: {
+    backgroundColor: colors.card,
+    borderRadius: 20,
+    padding: 24,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+  },
+  breakdownCard: {
+    backgroundColor: colors.card,
+    borderRadius: 24,
+    padding: 28,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+  },
+  chartSubtitle: {
+    fontSize: 13,
+    color: colors.textMuted,
+    marginTop: 4,
+  },
+  breakdownSummary: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'center',
+    backgroundColor: colors.inputBg,
+    borderRadius: 16,
+    padding: 20,
+    marginVertical: 20,
+  },
+  summaryItem: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  summaryLabel: {
+    fontSize: 12,
+    color: colors.textMuted,
+    marginBottom: 6,
+  },
+  summaryValue: {
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  summaryDivider: {
+    width: 1,
+    height: 40,
+    backgroundColor: colors.border,
+  },
+  chartHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  chartTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: colors.text,
+  },
+  chartBadge: {
+    backgroundColor: colors.primaryLight,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+  },
+  chartBadgeText: {
+    fontSize: 12,
+    color: colors.primary,
+    fontWeight: '600',
+  },
+  chartSummary: {
+    marginBottom: 20,
+  },
+  chartSummaryText: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    lineHeight: 22,
+  },
+  chartContainer: {
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  breakdownChartContainer: {
+    alignItems: 'center',
+    marginBottom: 24,
+    paddingVertical: 10,
+  },
+  categoriesGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  categoryItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    width: isWeb ? '48%' : '100%',
+    backgroundColor: colors.inputBg,
+    borderRadius: 12,
+    padding: 12,
+  },
+  categoryIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  categoryInfo: {
+    flex: 1,
+  },
+  categoryName: {
+    fontSize: 13,
+    color: colors.textSecondary,
+  },
+  categoryValue: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: colors.text,
+    marginTop: 2,
+  },
+  categoryPercent: {
+    backgroundColor: colors.border,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  categoryPercentText: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    fontWeight: '500',
+  },
+
+  // Charts Row
+  chartsRow: {
+    flexDirection: isWeb ? 'row' : 'column',
+    gap: 20,
+  },
+  chartCardHalf: {
+    flex: 1,
+  },
+  chartLegend: {
+    flexDirection: 'row',
+    gap: 16,
+    marginBottom: 16,
+  },
+  legendItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  legendDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  legendText: {
+    fontSize: 12,
+    color: colors.textSecondary,
+  },
+  donutContainer: {
+    alignItems: 'center',
+    marginVertical: 16,
+  },
+  donutLegend: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: 12,
+    marginTop: 8,
+  },
+  donutLegendItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    maxWidth: '45%',
+  },
+
+  // Indicators Row
+  indicatorsRow: {
+    flexDirection: isWeb ? 'row' : 'column',
+    gap: 20,
+  },
+  gaugeCard: {
+    flex: 1,
+    backgroundColor: colors.card,
+    borderRadius: 20,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+    alignItems: 'center',
+  },
+  gaugeTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: 12,
+  },
+  gaugeSubtext: {
+    fontSize: 12,
+    color: colors.textMuted,
+    marginTop: 8,
+    textAlign: 'center',
+  },
+  sparklinesCard: {
+    flex: 1,
+    backgroundColor: colors.card,
+    borderRadius: 20,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+  },
+  sparklineRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginTop: 12,
+  },
+  sparklineItem: {
+    alignItems: 'center',
+  },
+  sparklineHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 8,
+  },
+  sparklineLabel: {
+    fontSize: 12,
+    color: colors.textSecondary,
+  },
+
+  // User Card - Estilo mint green inspirado nas imagens
+  userCard: {
+    backgroundColor: colors.primary,
+    borderRadius: 20,
+    padding: 20,
+  },
+  userCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  userBadge: {
+    backgroundColor: 'rgba(255,255,255,0.25)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  userBadgeText: {
+    color: '#0f1f1a',
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  userInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  userAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: 'rgba(255,255,255,0.3)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.5)',
+  },
+  userAvatarText: {
+    color: '#0f1f1a',
+    fontSize: 20,
+    fontWeight: 'bold',
+  },
+  userName: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#0f1f1a',
+  },
+  userPlan: {
+    fontSize: 13,
+    color: 'rgba(15, 31, 26, 0.7)',
+    marginTop: 2,
+  },
+  userCardNumber: {
+    backgroundColor: 'rgba(255,255,255,0.95)',
+    borderRadius: 12,
+    padding: 16,
+  },
+  userCardLabel: {
+    fontSize: 11,
+    color: '#4a6359',
+  },
+  userCardDigits: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#0f1f1a',
+    marginTop: 4,
+  },
+
+  // Section Card
+  sectionCard: {
+    backgroundColor: colors.card,
+    borderRadius: 20,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: colors.text,
+  },
+  seeMoreText: {
+    fontSize: 13,
+    color: colors.textSecondary,
+  },
+  emptyText: {
+    fontSize: 14,
+    color: colors.textMuted,
+    textAlign: 'center',
+    paddingVertical: 20,
+  },
+
+  // Currency Items
+  currencyItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  currencyLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  currencyIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  currencySymbol: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: colors.primary,
+  },
+  currencyCode: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: colors.text,
+  },
+  currencyName: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    marginTop: 2,
+  },
+  currencyBalance: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+
+  // Bills
+  billItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  billDate: {
+    width: 50,
+    alignItems: 'center',
+    marginRight: 16,
+  },
+  billMonth: {
+    fontSize: 12,
+    color: colors.textMuted,
+    textTransform: 'capitalize',
+  },
+  billDay: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: colors.text,
+  },
+  billInfo: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  billIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  billDetails: {
+    flex: 1,
+  },
+  billName: {
+    fontSize: 15,
+    fontWeight: '500',
+    color: colors.text,
+  },
+  billPlan: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    marginTop: 2,
+  },
+  billValue: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.text,
+  },
+
+  // Header Controls
+  headerControls: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  datePickerBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.card,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 12,
+    gap: 8,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+  },
+  datePickerText: {
+    fontSize: 13,
+    color: colors.text,
+    fontWeight: '500',
+  },
+  moedaSelectorBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.card,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 12,
+    gap: 8,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+  },
+  moedaSelectorText: {
+    fontSize: 13,
+    color: colors.text,
+    fontWeight: '500',
+  },
+  moedaFlag: {
+    fontSize: 18,
+  },
+
+  // Metric Badge
+  metricMoeda: {
+    fontSize: 11,
+    color: colors.primary,
+    fontWeight: '600',
+    backgroundColor: colors.primaryLight,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  metricBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    gap: 4,
+  },
+
+  // Modal
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+
+  // Calendar Modal
+  calendarModal: {
+    backgroundColor: colors.card,
+    borderRadius: 20,
+    padding: 24,
+    width: isWeb ? 400 : '90%',
+    maxWidth: 400,
+  },
+  calendarHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  calendarTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: colors.text,
+  },
+  presetsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 20,
+  },
+  presetBtn: {
+    backgroundColor: colors.inputBg,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  presetBtnText: {
+    fontSize: 13,
+    color: colors.text,
+    fontWeight: '500',
+  },
+  calendarNav: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  calendarMonthYear: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.text,
+  },
+  weekDaysRow: {
+    flexDirection: 'row',
+    marginBottom: 8,
+  },
+  weekDayText: {
+    flex: 1,
+    textAlign: 'center',
+    fontSize: 12,
+    color: colors.textMuted,
+    fontWeight: '500',
+  },
+  daysGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+  },
+  dayCell: {
+    width: '14.28%',
+    aspectRatio: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  dayCellInRange: {
+    backgroundColor: colors.primaryLight,
+  },
+  dayCellStart: {
+    backgroundColor: colors.primary,
+    borderTopLeftRadius: 20,
+    borderBottomLeftRadius: 20,
+  },
+  dayCellEnd: {
+    backgroundColor: colors.primary,
+    borderTopRightRadius: 20,
+    borderBottomRightRadius: 20,
+  },
+  dayText: {
+    fontSize: 14,
+    color: colors.text,
+  },
+  dayTextInRange: {
+    color: colors.primary,
+  },
+  dayTextSelected: {
+    color: '#fff',
+    fontWeight: 'bold',
+  },
+  selectedRangeInfo: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 16,
+    marginTop: 20,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  rangeItem: {
+    alignItems: 'center',
+  },
+  rangeLabel: {
+    fontSize: 11,
+    color: colors.textMuted,
+    marginBottom: 4,
+  },
+  rangeValue: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.text,
+  },
+  calendarHint: {
+    fontSize: 12,
+    color: colors.primary,
+    textAlign: 'center',
+    marginTop: 12,
+  },
+
+  // Moeda Modal
+  moedaModal: {
+    backgroundColor: colors.card,
+    borderRadius: 20,
+    padding: 24,
+    width: isWeb ? 400 : '90%',
+    maxWidth: 400,
+  },
+  moedaModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  moedaModalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: colors.text,
+  },
+  moedaOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 14,
+    borderRadius: 12,
+    marginBottom: 8,
+    backgroundColor: colors.inputBg,
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  moedaOptionActive: {
+    backgroundColor: colors.primaryLight,
+    borderColor: colors.primary,
+  },
+  moedaOptionIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: colors.card,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  moedaOptionFlag: {
+    fontSize: 28,
+    marginRight: 12,
+  },
+  moedaOptionInfo: {
+    flex: 1,
+  },
+  moedaOptionName: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: colors.text,
+  },
+  moedaOptionDesc: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    marginTop: 2,
+  },
+  cotacoesInfo: {
+    marginTop: 16,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  cotacoesTitle: {
+    fontSize: 12,
+    color: colors.textMuted,
+    marginBottom: 12,
+  },
+  cotacoesGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  cotacaoItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.inputBg,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+    gap: 6,
+  },
+  cotacaoFlag: {
+    fontSize: 16,
+  },
+  cotacaoCode: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.textSecondary,
+  },
+  cotacaoValue: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: colors.text,
+  },
+});

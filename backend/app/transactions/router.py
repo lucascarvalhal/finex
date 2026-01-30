@@ -23,7 +23,8 @@ def create_transaction(
         valor=transaction.valor,
         categoria=transaction.categoria,
         descricao=transaction.descricao,
-        data=transaction.data
+        data=transaction.data,
+        moeda=transaction.moeda or "BRL"
     )
     db.add(db_transaction)
     db.commit()

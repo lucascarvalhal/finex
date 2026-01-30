@@ -1,23 +1,27 @@
 import { Tabs } from 'expo-router';
-import { View, Text, TouchableOpacity, StyleSheet, Platform, Dimensions } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Platform, Dimensions, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { usePathname, router } from 'expo-router';
 import { useTheme } from '../../contexts/ThemeContext';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const screenWidth = Dimensions.get('window').width;
 const isWeb = Platform.OS === 'web' && screenWidth > 768;
 
 function Sidebar() {
   const pathname = usePathname();
-  const { theme, isDark, toggleTheme } = useTheme();
+  const { theme } = useTheme();
   const colors = theme.colors;
 
-  const menuItems = [
-    { name: 'index', label: 'Dashboard', icon: 'grid-outline', iconActive: 'grid' },
-    { name: 'transacoes', label: 'Transações', icon: 'swap-horizontal-outline', iconActive: 'swap-horizontal' },
-    { name: 'assessor', label: 'Assessor IA', icon: 'chatbubble-ellipses-outline', iconActive: 'chatbubble-ellipses' },
-    { name: 'integracoes', label: 'Integrações', icon: 'extension-puzzle-outline', iconActive: 'extension-puzzle' },
-    { name: 'perfil', label: 'Perfil', icon: 'person-outline', iconActive: 'person' },
+  const financeItems = [
+    { name: 'index', label: 'Overview', icon: 'grid-outline', iconActive: 'grid', badge: null },
+    { name: 'transacoes', label: 'Transações', icon: 'wallet-outline', iconActive: 'wallet', badge: null },
+    { name: 'assessor', label: 'Assessor IA', icon: 'sparkles-outline', iconActive: 'sparkles', badge: null },
+  ];
+
+  const configItems = [
+    { name: 'integracoes', label: 'Integrações', icon: 'extension-puzzle-outline', iconActive: 'extension-puzzle', badge: null },
+    { name: 'perfil', label: 'Configurações', icon: 'settings-outline', iconActive: 'settings', badge: null },
   ];
 
   const isActive = (name: string) => {
@@ -25,65 +29,83 @@ function Sidebar() {
     return pathname.includes(name);
   };
 
+  const handleLogout = async () => {
+    await AsyncStorage.removeItem('token');
+    router.replace('/login');
+  };
+
+  const MenuItem = ({ item }: { item: typeof financeItems[0] }) => (
+    <TouchableOpacity
+      style={[
+        styles.menuItem,
+        isActive(item.name) && { backgroundColor: colors.sidebarItemActive, borderLeftWidth: 3, borderLeftColor: colors.sidebarAccent }
+      ]}
+      onPress={() => router.push(item.name === 'index' ? '/(tabs)' : `/(tabs)/${item.name}`)}
+    >
+      <Ionicons
+        name={isActive(item.name) ? item.iconActive as any : item.icon as any}
+        size={20}
+        color={isActive(item.name) ? colors.sidebarTextActive : colors.sidebarText}
+      />
+      <Text style={[
+        styles.menuLabel,
+        { color: isActive(item.name) ? colors.sidebarTextActive : colors.sidebarText }
+      ]}>
+        {item.label}
+      </Text>
+      {item.badge && (
+        <View style={[styles.badge, { backgroundColor: colors.sidebarAccent }]}>
+          <Text style={styles.badgeText}>{item.badge}</Text>
+        </View>
+      )}
+    </TouchableOpacity>
+  );
+
   return (
-    <View style={[styles.sidebar, { backgroundColor: colors.sidebarBg, borderRightColor: colors.sidebarBorder }]}>
+    <View style={[styles.sidebar, { backgroundColor: colors.sidebarBg }]}>
       {/* Logo */}
       <View style={styles.logoContainer}>
-        <View style={[styles.logoIcon, { backgroundColor: colors.primaryLight }]}>
-          <Ionicons name="wallet" size={24} color={colors.primary} />
+        <View style={styles.logoIcons}>
+          <View style={[styles.logoCircle, { backgroundColor: colors.sidebarAccent }]} />
+          <View style={[styles.logoCircle, styles.logoCircleSecond, { backgroundColor: colors.accent }]} />
         </View>
-        <Text style={[styles.logoText, { color: colors.text }]}>Nexfy</Text>
+        <Text style={styles.logoText}>Nexfy</Text>
       </View>
 
-      {/* Menu */}
-      <View style={styles.menu}>
-        {menuItems.map((item) => (
-          <TouchableOpacity
-            key={item.name}
-            style={[
-              styles.menuItem, 
-              { backgroundColor: isActive(item.name) ? colors.primaryLight : 'transparent' }
-            ]}
-            onPress={() => router.push(item.name === 'index' ? '/(tabs)' : `/(tabs)/${item.name}`)}
-          >
-            <Ionicons
-              name={isActive(item.name) ? item.iconActive as any : item.icon as any}
-              size={20}
-              color={isActive(item.name) ? colors.primary : colors.textMuted}
-            />
-            <Text style={[
-              styles.menuLabel, 
-              { color: isActive(item.name) ? colors.primary : colors.textMuted }
-            ]}>
-              {item.label}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
+      <ScrollView style={styles.menuScroll} showsVerticalScrollIndicator={false}>
+        {/* Finance Section */}
+        <Text style={[styles.sectionTitle, { color: colors.sidebarText }]}>FINANÇAS</Text>
+        <View style={styles.menuSection}>
+          {financeItems.map((item) => (
+            <MenuItem key={item.name} item={item} />
+          ))}
+        </View>
 
-      {/* Theme Toggle */}
-      <TouchableOpacity 
-        style={[styles.themeToggle, { backgroundColor: colors.card, borderColor: colors.border }]}
-        onPress={toggleTheme}
-      >
-        <Ionicons 
-          name={isDark ? 'sunny' : 'moon'} 
-          size={20} 
-          color={isDark ? '#f59e0b' : '#6366f1'} 
-        />
-        <Text style={[styles.themeText, { color: colors.textSecondary }]}>
-          {isDark ? 'Modo Claro' : 'Modo Escuro'}
+        {/* Config Section */}
+        <Text style={[styles.sectionTitle, { color: colors.sidebarText, marginTop: 24 }]}>CONFIGURAÇÕES</Text>
+        <View style={styles.menuSection}>
+          {configItems.map((item) => (
+            <MenuItem key={item.name} item={item} />
+          ))}
+        </View>
+      </ScrollView>
+
+      {/* Promo Card */}
+      <View style={[styles.promoCard, { backgroundColor: colors.sidebarItemActive, borderColor: colors.sidebarBorder }]}>
+        <View style={[styles.promoBadge, { backgroundColor: colors.sidebarAccent }]}>
+          <Text style={styles.promoBadgeText}>Novo</Text>
+        </View>
+        <Text style={[styles.promoTitle, { color: colors.sidebarTextActive }]}>Upload de documentos</Text>
+        <Text style={[styles.promoText, { color: colors.sidebarText }]}>
+          Importe extratos bancários e organize automaticamente
         </Text>
-      </TouchableOpacity>
-
-      {/* Premium Card */}
-      <View style={[styles.premiumCard, { backgroundColor: colors.primaryLight, borderColor: colors.primary + '30' }]}>
-        <Text style={[styles.premiumTitle, { color: colors.primary }]}>Nexfy Pro</Text>
-        <Text style={[styles.premiumText, { color: colors.textMuted }]}>Desbloqueie recursos avançados</Text>
-        <TouchableOpacity style={[styles.premiumBtn, { backgroundColor: colors.primary }]}>
-          <Text style={styles.premiumBtnText}>Upgrade</Text>
-        </TouchableOpacity>
       </View>
+
+      {/* Logout */}
+      <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
+        <Ionicons name="log-out-outline" size={20} color={colors.sidebarText} />
+        <Text style={[styles.logoutText, { color: colors.sidebarText }]}>Sair</Text>
+      </TouchableOpacity>
     </View>
   );
 }
@@ -121,8 +143,9 @@ export default function TabsLayout() {
           backgroundColor: colors.card,
           borderTopColor: colors.border,
           borderTopWidth: 1,
-          height: 60,
-          paddingBottom: 8,
+          height: 65,
+          paddingBottom: 10,
+          paddingTop: 5,
         },
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.textMuted,
@@ -134,7 +157,7 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Dashboard',
+          title: 'Overview',
           tabBarIcon: ({ color, size }) => <Ionicons name="grid-outline" size={size} color={color} />,
         }}
       />
@@ -142,14 +165,14 @@ export default function TabsLayout() {
         name="transacoes"
         options={{
           title: 'Transações',
-          tabBarIcon: ({ color, size }) => <Ionicons name="swap-horizontal-outline" size={size} color={color} />,
+          tabBarIcon: ({ color, size }) => <Ionicons name="wallet-outline" size={size} color={color} />,
         }}
       />
       <Tabs.Screen
         name="assessor"
         options={{
           title: 'Assessor',
-          tabBarIcon: ({ color, size }) => <Ionicons name="chatbubble-ellipses-outline" size={size} color={color} />,
+          tabBarIcon: ({ color, size }) => <Ionicons name="sparkles-outline" size={size} color={color} />,
         }}
       />
       <Tabs.Screen
@@ -163,7 +186,7 @@ export default function TabsLayout() {
         name="perfil"
         options={{
           title: 'Perfil',
-          tabBarIcon: ({ color, size }) => <Ionicons name="person-outline" size={size} color={color} />,
+          tabBarIcon: ({ color, size }) => <Ionicons name="settings-outline" size={size} color={color} />,
         }}
       />
     </Tabs>
@@ -176,80 +199,115 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
   },
   sidebar: {
-    width: 240,
-    borderRightWidth: 1,
+    width: 260,
     padding: 20,
+    paddingTop: 24,
     justifyContent: 'flex-start',
   },
   logoContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 40,
-    paddingLeft: 8,
+    justifyContent: 'space-between',
+    marginBottom: 32,
+    paddingHorizontal: 4,
   },
-  logoIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    justifyContent: 'center',
+  logoIcons: {
+    flexDirection: 'row',
     alignItems: 'center',
-    marginRight: 12,
+  },
+  logoCircle: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+  },
+  logoCircleSecond: {
+    marginLeft: -10,
   },
   logoText: {
-    fontSize: 22,
-    fontWeight: 'bold',
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#fff',
+    marginLeft: 12,
   },
-  menu: {
+  menuScroll: {
     flex: 1,
+  },
+  sectionTitle: {
+    fontSize: 11,
+    fontWeight: '600',
+    letterSpacing: 1,
+    marginBottom: 12,
+    paddingHorizontal: 12,
+    opacity: 0.6,
+  },
+  menuSection: {
+    marginBottom: 8,
   },
   menuItem: {
     flexDirection: 'row',
     alignItems: 'center',
     padding: 14,
+    paddingLeft: 12,
     borderRadius: 12,
-    marginBottom: 8,
+    marginBottom: 4,
+    borderLeftWidth: 3,
+    borderLeftColor: 'transparent',
   },
   menuLabel: {
     marginLeft: 14,
     fontSize: 15,
     fontWeight: '500',
+    flex: 1,
   },
-  themeToggle: {
+  badge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+    minWidth: 24,
+    alignItems: 'center',
+  },
+  badgeText: {
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  promoCard: {
+    borderRadius: 16,
+    padding: 16,
+    marginTop: 16,
+    borderWidth: 1,
+  },
+  promoBadge: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 6,
+    marginBottom: 10,
+  },
+  promoBadgeText: {
+    color: '#0f2132',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  promoTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 6,
+  },
+  promoText: {
+    fontSize: 12,
+    lineHeight: 18,
+  },
+  logoutBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     padding: 14,
-    borderRadius: 12,
-    marginBottom: 16,
-    borderWidth: 1,
-    gap: 10,
+    marginTop: 16,
   },
-  themeText: {
-    fontSize: 14,
+  logoutText: {
+    marginLeft: 12,
+    fontSize: 15,
     fontWeight: '500',
-  },
-  premiumCard: {
-    borderRadius: 16,
-    padding: 20,
-    borderWidth: 1,
-  },
-  premiumTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginBottom: 6,
-  },
-  premiumText: {
-    fontSize: 12,
-    marginBottom: 14,
-  },
-  premiumBtn: {
-    borderRadius: 10,
-    paddingVertical: 10,
-    alignItems: 'center',
-  },
-  premiumBtnText: {
-    color: '#fff',
-    fontWeight: '600',
-    fontSize: 14,
   },
   content: {
     flex: 1,
