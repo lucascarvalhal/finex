@@ -1,11 +1,12 @@
 {
   "expo": {
-    "name": "app",
-    "slug": "app",
+    "name": "Nexfy",
+    "slug": "nexfy",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
+    "scheme": "nexfy",
     "newArchEnabled": true,
     "splash": {
       "image": "./assets/splash-icon.png",
@@ -13,7 +14,8 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.nexfy.app"
     },
     "android": {
       "adaptiveIcon": {
@@ -27,7 +29,8 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "expo-router"
+      "expo-router",
+      "expo-web-browser"
     ]
   }
 }

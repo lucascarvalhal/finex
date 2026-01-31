@@ -4,7 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../contexts/ThemeContext';
 
-const API_URL = 'http://localhost:8000';
+import { API_URL } from '../../config/api';
 
 interface Message {
   id: string;

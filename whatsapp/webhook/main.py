@@ -203,12 +203,46 @@ async def process_with_gemini(text: str) -> dict:
 
 
 async def get_user_token(phone: str) -> str:
-    """Obtém token do usuário"""
-    return USER_TOKENS.get(phone)
+    """Obtém token do usuário - primeiro verifica cache, depois busca por telefone"""
+    # Verificar cache local
+    if phone in USER_TOKENS:
+        return USER_TOKENS[phone]
+
+    # Tentar autenticação automática pelo telefone
+    token = await auto_login_by_phone(phone)
+    if token:
+        USER_TOKENS[phone] = token
+        return token
+
+    return None
+
+
+async def auto_login_by_phone(phone: str) -> str:
+    """Autentica usuário automaticamente pelo número de telefone"""
+    async with httpx.AsyncClient() as client:
+        try:
+            # Formatar telefone (remover código do país se presente)
+            clean_phone = phone
+            if phone.startswith("55"):
+                clean_phone = phone[2:]  # Remove código do Brasil
+
+            response = await client.post(
+                f"{NEXFY_API_URL}/auth/login-by-phone",
+                json={"telefone": clean_phone}
+            )
+            if response.status_code == 200:
+                data = response.json()
+                print(f"Auto-login bem sucedido para telefone {phone}")
+                return data["access_token"]
+            else:
+                print(f"Auto-login falhou: {response.status_code}")
+        except Exception as e:
+            print(f"Erro no auto-login: {e}")
+    return None
 
 
 async def register_user(phone: str, email: str, password: str) -> bool:
-    """Registra ou autentica usuário"""
+    """Registra ou autentica usuário via email/senha"""
     async with httpx.AsyncClient() as client:
         try:
             response = await client.post(
@@ -342,7 +376,8 @@ async def webhook(request: Request):
                 if not token:
                     await send_whatsapp_message(
                         phone,
-                        "👋 Olá! Para registrar gastos por foto, faça login primeiro:\n/login seu@email.com suasenha"
+                        "👋 Olá! Para registrar gastos por foto, vincule seu WhatsApp no app Nexfy primeiro.\n\n"
+                        "📱 Abra o app → Faça login → Cadastre seu telefone"
                     )
                     return {"status": "ok"}
 
@@ -400,7 +435,13 @@ async def webhook(request: Request):
         if not token:
             await send_whatsapp_message(
                 phone,
-                "👋 Olá! Sou o assistente do Nexfy.\n\nPara começar, faça login:\n/login seu@email.com suasenha"
+                "👋 Olá! Sou o assistente financeiro do Nexfy.\n\n"
+                "Não encontrei seu número vinculado a uma conta.\n\n"
+                "📱 *Como vincular:*\n"
+                "1. Abra o app Nexfy\n"
+                "2. Faça login ou crie uma conta\n"
+                "3. Cadastre este número de WhatsApp\n\n"
+                "Depois é só voltar aqui e começar a registrar seus gastos! 💰"
             )
             return {"status": "ok"}
 

@@ -4,7 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../contexts/ThemeContext';
 
-const API_URL = 'http://localhost:8000';
+import { API_URL } from '../../config/api';
 const NEXFY_WHATSAPP = '5511936183690'; // Número do Nexfy (ajustar depois)
 
 // Alert multiplataforma

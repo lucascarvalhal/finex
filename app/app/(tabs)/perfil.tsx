@@ -5,7 +5,7 @@ import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../contexts/ThemeContext';
 
-const API_URL = 'http://localhost:8000';
+import { API_URL } from '../../config/api';
 
 // Alert multiplataforma
 const showAlert = (title: string, message: string, buttons: { text: string; style?: string; onPress?: () => void }[]) => {
