@@ -131,6 +131,58 @@ async def transcribe_audio(audio_bytes: bytes) -> str:
         return None
 
 
+async def process_image(image_bytes: bytes, mime_type: str) -> dict:
+    """Processa imagem de nota fiscal/recibo usando Gemini"""
+    try:
+        # Salvar temporariamente
+        ext = ".jpg" if "jpeg" in mime_type or "jpg" in mime_type else ".png"
+        with tempfile.NamedTemporaryFile(suffix=ext, delete=False) as f:
+            f.write(image_bytes)
+            temp_path = f.name
+
+        # Upload para Gemini
+        from google.generativeai import upload_file
+        image_file = upload_file(temp_path, mime_type=mime_type)
+
+        prompt = """Analise esta imagem de nota fiscal, recibo ou comprovante.
+
+Extraia as informações e retorne APENAS um JSON válido com esta estrutura:
+{
+    "tipo": "despesa" | "receita",
+    "valor": número total (apenas o número, sem R$),
+    "categoria": "Alimentação" | "Transporte" | "Moradia" | "Lazer" | "Saúde" | "Educação" | "Compras" | "Geral",
+    "descricao": "descrição curta do que foi comprado/pago",
+    "estabelecimento": "nome do estabelecimento se visível",
+    "sucesso": true
+}
+
+Se não conseguir identificar como nota fiscal ou não encontrar valor, retorne:
+{
+    "sucesso": false,
+    "resposta": "Não consegui identificar esta imagem como uma nota fiscal ou recibo."
+}
+
+Retorne APENAS o JSON, sem markdown ou texto adicional."""
+
+        response = model.generate_content([prompt, image_file])
+        result = response.text.strip()
+
+        # Limpar arquivo temporário
+        os.unlink(temp_path)
+
+        # Limpar possíveis marcadores de código
+        if result.startswith("```"):
+            result = result.split("```")[1]
+            if result.startswith("json"):
+                result = result[4:]
+        result = result.strip()
+
+        return json.loads(result)
+    except Exception as e:
+        print(f"Erro ao processar imagem: {e}")
+        return {"sucesso": False, "resposta": "Erro ao processar a imagem. Tente novamente."}
+
+
 async def process_with_gemini(text: str) -> dict:
     """Processa texto com Gemini para extrair intenção"""
     try:
@@ -277,6 +329,50 @@ async def webhook(request: Request):
                     text = await transcribe_audio(audio_bytes)
                     if text:
                         print(f"Áudio transcrito: {text}")
+
+        elif message_type == "image":
+            # Processar imagem (nota fiscal, recibo, etc)
+            image_info = message.get("image", {})
+            image_id = image_info.get("id")
+            mime_type = image_info.get("mime_type", "image/jpeg")
+
+            if image_id:
+                # Verificar se usuário está autenticado
+                token = await get_user_token(phone)
+                if not token:
+                    await send_whatsapp_message(
+                        phone,
+                        "👋 Olá! Para registrar gastos por foto, faça login primeiro:\n/login seu@email.com suasenha"
+                    )
+                    return {"status": "ok"}
+
+                image_bytes = await download_whatsapp_media(image_id)
+                if image_bytes:
+                    print(f"Processando imagem...")
+                    result = await process_image(image_bytes, mime_type)
+                    print(f"Resultado da imagem: {result}")
+
+                    if result.get("sucesso"):
+                        tipo = result.get("tipo", "despesa")
+                        valor = result.get("valor")
+                        categoria = result.get("categoria", "Geral")
+                        descricao = result.get("descricao", "")
+                        estabelecimento = result.get("estabelecimento", "")
+
+                        if estabelecimento:
+                            descricao = f"{descricao} - {estabelecimento}"
+
+                        success = await create_transaction(token, tipo, valor, categoria, descricao)
+                        if success:
+                            emoji = "💸" if tipo == "despesa" else "💰"
+                            response_msg = f"✅ {tipo.capitalize()} registrada da nota fiscal!\n\n{emoji} R$ {valor:.2f}\n📁 {categoria}\n📝 {descricao}"
+                        else:
+                            response_msg = "❌ Erro ao registrar. Tente novamente."
+                    else:
+                        response_msg = result.get("resposta", "Não consegui ler esta imagem. Envie uma foto clara de nota fiscal ou recibo.")
+
+                    await send_whatsapp_message(phone, response_msg)
+                    return {"status": "ok"}
 
         if not text:
             return {"status": "no text"}
