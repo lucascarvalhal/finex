@@ -21,7 +21,7 @@ WHATSAPP_API_URL = f"https://graph.facebook.com/v21.0/{WHATSAPP_PHONE_NUMBER_ID}
 
 # Configurar Gemini
 genai.configure(api_key=GEMINI_API_KEY)
-model = genai.GenerativeModel('gemini-1.5-flash')
+model = genai.GenerativeModel('gemini-2.0-flash')
 
 # Token do usuário (simplificado - em produção usar banco de dados)
 USER_TOKENS = {}
@@ -113,8 +113,9 @@ async def transcribe_audio(audio_bytes: bytes) -> str:
             f.write(audio_bytes)
             temp_path = f.name
 
-        # Upload para Gemini
-        audio_file = genai.upload_file(temp_path, mime_type="audio/ogg")
+        # Upload para Gemini usando a nova API
+        from google.generativeai import upload_file
+        audio_file = upload_file(temp_path, mime_type="audio/ogg")
 
         response = model.generate_content([
             "Transcreva este áudio em português. Retorne apenas o texto transcrito, sem explicações.",
@@ -160,12 +161,14 @@ async def register_user(phone: str, email: str, password: str) -> bool:
         try:
             response = await client.post(
                 f"{NEXFY_API_URL}/auth/login",
-                data={"username": email, "password": password}
+                json={"email": email, "password": password}
             )
             if response.status_code == 200:
                 data = response.json()
                 USER_TOKENS[phone] = data["access_token"]
                 return True
+            else:
+                print(f"Login falhou: {response.status_code} - {response.text}")
         except Exception as e:
             print(f"Erro no login: {e}")
     return False
